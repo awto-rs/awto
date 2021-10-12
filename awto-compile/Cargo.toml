@@ -1,0 +1,10 @@
+[package]
+name = "awto-compile"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+awto-schema = { path = "../awto-schema" }
+
+[dev-dependencies]
+uuid = "0.8"
