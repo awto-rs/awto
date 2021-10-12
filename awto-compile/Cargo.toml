@@ -5,6 +5,9 @@ edition = "2018"
 
 [dependencies]
 awto-schema = { path = "../awto-schema" }
+sqlx = { version = "0.5", features = ["postgres", "runtime-tokio-rustls"] }
+thiserror = "1.0"
 
 [dev-dependencies]
+tokio = { version = "1.12", features = ["full"] }
 uuid = "0.8"

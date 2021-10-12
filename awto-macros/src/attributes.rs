@@ -25,7 +25,6 @@ impl syn::parse::Parse for KeyVal<syn::LitStr> {
         let lookahead = input.lookahead1();
         if !lookahead.peek(syn::token::Paren) {
             return Err(lookahead.error());
-            // return Err(syn::Error::new(input.span(), "expected group (..., ...)"));
         }
 
         let group: syn::ExprTuple = input.parse()?;

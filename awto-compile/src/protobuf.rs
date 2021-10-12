@@ -5,6 +5,17 @@ use awto_schema::protobuf::ProtobufSchema;
 pub fn compile_protobuf(messages: &[&dyn ProtobufSchema]) -> String {
     let mut proto = String::new();
 
+    writeln!(
+        proto,
+        r#"syntax = "proto3";
+
+package schema;
+
+import "google/protobuf/timestamp.proto";
+"#
+    )
+    .unwrap();
+
     for (i, message) in messages.iter().enumerate() {
         let message_proto = generate_protobuf_message(*message);
         writeln!(proto, "{}", message_proto).unwrap();
@@ -70,7 +81,13 @@ mod test {
         let sql = compile_protobuf(&[&Product::protobuf_schema(), &Variant::protobuf_schema()]);
         assert_eq!(
             sql,
-            "message Product {
+            r#"syntax = "proto3";
+
+package schema;
+
+import "google/protobuf/timestamp.proto";
+
+message Product {
   required string id = 1;
   required google.protobuf.Timestamp created_at = 2;
   required google.protobuf.Timestamp updated_at = 3;
@@ -87,7 +104,7 @@ message Variant {
   required string name = 5;
   required uint64 price = 6;
 }
-"
+"#
         )
     }
 }

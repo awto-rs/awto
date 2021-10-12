@@ -58,8 +58,8 @@ impl DeriveProtobufModel {
 
                 Ok(quote!(
                     awto_schema::protobuf::ProtobufField {
-                        name: #name,
-                        ty: #ty,
+                        name: #name.to_string(),
+                        ty: #ty.to_string(),
                         required: #required,
                     }
                 ))
@@ -82,12 +82,12 @@ impl DeriveProtobufModel {
                 }
 
                 fn fields(&self) -> ::std::vec::Vec<awto_schema::protobuf::ProtobufField> {
-                    let mut cols = Vec::with_capacity(#fields_len + awto_schema::protobuf::DEFAULT_PROTOBUF_FIELDS.len());
-                    cols.extend(awto_schema::protobuf::DEFAULT_PROTOBUF_FIELDS);
-                    cols.extend([
+                    let mut fields = Vec::with_capacity(#fields_len + awto_schema::protobuf::DEFAULT_PROTOBUF_FIELDS.len());
+                    fields.extend(awto_schema::protobuf::DEFAULT_PROTOBUF_FIELDS.clone());
+                    fields.extend([
                         #( #fields, )*
                     ]);
-                    cols
+                    fields
                 }
             }
         ))

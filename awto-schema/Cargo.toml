@@ -5,3 +5,4 @@ edition = "2018"
 
 [dependencies]
 awto-macros = { path = "../awto-macros" }
+lazy_static = "1.4"

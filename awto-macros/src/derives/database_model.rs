@@ -45,28 +45,35 @@ impl DeriveDatabaseModel {
             .iter()
             .map(|field| {
                 let name = field.field.ident.as_ref().unwrap().to_string();
-                let mut ty = if let Some(db_type) = &field.attrs.db_type {
-                    db_type.value()
+                let mut ty: TokenStream = if let Some(db_type) = &field.attrs.db_type {
+                    if let Ok(db_type) = db_type.value().parse::<TokenStream>() {
+                        quote!(awto_schema::database::DatabaseType::#db_type)
+                    } else {
+                        return Err(syn::Error::new(db_type.span(), "invalid db_type"));
+                    }
                 } else if let Some(db_type) = Self::rust_to_db_type(&field.field.ty) {
-                    db_type.to_string()
+                    db_type
                 } else {
                     return Err(syn::Error::new(
                         field.field.ty.span(),
                         "type is not suppoerted",
                     ));
                 };
+                let db_type_is_text = ty.to_string().ends_with(":: Text");
                 if let Some(max_len) = &field.attrs.max_len {
-                    if ty != "varchar" && ty != "char" {
+                    if !db_type_is_text {
                         return Err(syn::Error::new(
                             max_len.span(),
                             "max_len can only be used on varchar & char types",
                         ));
                     }
-                    ty = format!("{}({})", ty, max_len.base10_parse::<u64>()?);
+                    ty = quote!(#ty(Some(#max_len)));
+                } else if db_type_is_text {
+                    ty = quote!(#ty(None));
                 }
                 let nullable = Self::is_type_option(&field.field.ty);
                 let default = if let Some(default_raw) = &field.attrs.default_raw {
-                    quote!(Some(awto_schema::database::DatabaseDefault::Raw(#default_raw)))
+                    quote!(Some(awto_schema::database::DatabaseDefault::Raw(#default_raw.to_string())))
                 } else if let Some(default) = &field.attrs.default {
                     if let Some(db_default) = Self::lit_to_db_default(default) {
                         quote!(Some(#db_default))
@@ -84,15 +91,16 @@ impl DeriveDatabaseModel {
                     let references_table = references.0.value();
                     let references_column = references.1.value();
 
-                    quote!(Some((#references_table, #references_column)))
+                    quote!(Some((#references_table.to_string(), #references_column.to_string())))
                 } else {
                     quote!(None)
                 };
 
                 Ok(quote!(
                     awto_schema::database::DatabaseColumn {
-                        name: #name,
+                        name: #name.to_string(),
                         ty: #ty,
+                        // ty: awto_schema::database::DatabaseType::BigInt,
                         nullable: #nullable,
                         default: #default,
                         unique: #unique,
@@ -121,7 +129,7 @@ impl DeriveDatabaseModel {
 
                 fn columns(&self) -> ::std::vec::Vec<awto_schema::database::DatabaseColumn> {
                     let mut cols = Vec::with_capacity(#columns_len + awto_schema::database::DEFAULT_DATABASE_COLUMNS.len());
-                    cols.extend(awto_schema::database::DEFAULT_DATABASE_COLUMNS);
+                    cols.extend(awto_schema::database::DEFAULT_DATABASE_COLUMNS.clone());
                     cols.extend([
                         #( #columns, )*
                     ]);
@@ -148,13 +156,15 @@ impl DeriveDatabaseModel {
             syn::Lit::Bool(b) => quote!(awto_schema::database::DatabaseDefault::Bool(#b)),
             syn::Lit::Float(f) => quote!(awto_schema::database::DatabaseDefault::Float(#f)),
             syn::Lit::Int(i) => quote!(awto_schema::database::DatabaseDefault::Int(#i)),
-            syn::Lit::Str(s) => quote!(awto_schema::database::DatabaseDefault::String(#s)),
+            syn::Lit::Str(s) => {
+                quote!(awto_schema::database::DatabaseDefault::String(#s.to_string()))
+            }
             _ => return None,
         };
         Some(db_default)
     }
 
-    fn rust_to_db_type(ty: &syn::Type) -> Option<&'static str> {
+    fn rust_to_db_type(ty: &syn::Type) -> Option<TokenStream> {
         let ty_string = match ty {
             syn::Type::Reference(reference) => {
                 let mut reference = reference.clone();
@@ -172,34 +182,34 @@ impl DeriveDatabaseModel {
 
         let db_type = match ty_str {
             // Numeric types
-            "i16" | "u16" => "smallint",
-            "i32" | "u32" => "integer",
-            "i64" | "u64" => "bigint",
-            "f32" => "real",
-            "f64" => "double precision",
+            "i16" | "u16" => quote!(SmallInt),
+            "i32" | "u32" => quote!(Integer),
+            "i64" | "u64" => quote!(BigInt),
+            "f32" => quote!(Float),
+            "f64" => quote!(Double),
 
             // Character types
-            "String" | "&str" => "varchar",
+            "String" | "&str" => quote!(Text),
 
             // Binary data types
-            "Vec<u8>" | "&u8" => "bytea",
+            "Vec<u8>" | "&u8" => quote!(Binary),
 
             // Date/Time types
-            "chrono::NaiveDateTime" | "NaiveDateTime" => "timestamp",
-            "chrono::DateTime" | "DateTime" => "timestamptz",
-            "chrono::NaiveDate" | "NaiveDate" => "date",
-            "chrono::NaiveTime" | "NaiveTime" => "time",
+            "chrono::NaiveDateTime" | "NaiveDateTime" => quote!(Timestamp),
+            "chrono::DateTime" | "DateTime" => quote!(Timestamptz),
+            "chrono::NaiveDate" | "NaiveDate" => quote!(Date),
+            "chrono::NaiveTime" | "NaiveTime" => quote!(Time),
 
             // Boolean type
-            "bool" => "boolean",
+            "bool" => quote!(Bool),
 
             // Uuid type
-            "uuid::Uuid" | "Uuid" => "uuid",
+            "uuid::Uuid" | "Uuid" => quote!(Uuid),
 
             _ => return None,
         };
 
-        Some(db_type)
+        Some(quote!(awto_schema::database::DatabaseType::#db_type))
     }
 }
 

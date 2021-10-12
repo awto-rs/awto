@@ -1,25 +1,29 @@
-pub const DEFAULT_PROTOBUF_FIELDS: [ProtobufField; 3] = [
-    ProtobufField {
-        name: "id",
-        ty: "string",
-        required: true,
-    },
-    ProtobufField {
-        name: "created_at",
-        ty: "google.protobuf.Timestamp",
-        required: true,
-    },
-    ProtobufField {
-        name: "updated_at",
-        ty: "google.protobuf.Timestamp",
-        required: true,
-    },
-];
+use lazy_static::lazy_static;
+
+lazy_static! {
+    pub static ref DEFAULT_PROTOBUF_FIELDS: [ProtobufField; 3] = [
+        ProtobufField {
+            name: "id".to_string(),
+            ty: "string".to_string(),
+            required: true,
+        },
+        ProtobufField {
+            name: "created_at".to_string(),
+            ty: "google.protobuf.Timestamp".to_string(),
+            required: true,
+        },
+        ProtobufField {
+            name: "updated_at".to_string(),
+            ty: "google.protobuf.Timestamp".to_string(),
+            required: true,
+        },
+    ];
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProtobufField {
-    pub name: &'static str,
-    pub ty: &'static str,
+    pub name: String,
+    pub ty: String,
     pub required: bool,
 }
 
@@ -62,33 +66,33 @@ mod test {
         let fields = Product::protobuf_schema().fields();
         let expected = vec![
             ProtobufField {
-                name: "id",
-                ty: "string",
+                name: "id".to_string(),
+                ty: "string".to_string(),
                 required: true,
             },
             ProtobufField {
-                name: "created_at",
-                ty: "google.protobuf.Timestamp",
+                name: "created_at".to_string(),
+                ty: "google.protobuf.Timestamp".to_string(),
                 required: true,
             },
             ProtobufField {
-                name: "updated_at",
-                ty: "google.protobuf.Timestamp",
+                name: "updated_at".to_string(),
+                ty: "google.protobuf.Timestamp".to_string(),
                 required: true,
             },
             ProtobufField {
-                name: "name",
-                ty: "string",
+                name: "name".to_string(),
+                ty: "string".to_string(),
                 required: true,
             },
             ProtobufField {
-                name: "price",
-                ty: "uint64",
+                name: "price".to_string(),
+                ty: "uint64".to_string(),
                 required: true,
             },
             ProtobufField {
-                name: "description",
-                ty: "string",
+                name: "description".to_string(),
+                ty: "string".to_string(),
                 required: false,
             },
         ];
