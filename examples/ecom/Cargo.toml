@@ -1,0 +1,15 @@
+[package]
+name = "ecom"
+version = "0.1.0"
+edition = "2018"
+
+[build-dependencies]
+awto-compile = { path = "../../awto-compile" }
+awto-schema = { path = "../../awto-schema" }
+schema = { path = "./schema" }
+sqlx = { version = "0.5", features = ["postgres", "runtime-tokio-rustls"] }
+tokio = { version = "1.12", features = ["full"] }
+uuid = "0.8"
+
+[workspace]
+members = ["schema"]
