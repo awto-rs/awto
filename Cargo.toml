@@ -1,2 +1,2 @@
 [workspace]
-members = ["awto-compile", "awto-macros", "awto-schema"]
+members = ["awto", "awto-compile", "awto-macros", "awto-schema"]
