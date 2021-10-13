@@ -475,7 +475,7 @@ mod test {
 
     #[derive(Model)]
     pub struct Variant {
-        #[awto(references = ("product", "id"))]
+        #[awto(references = (Product, "id"))]
         pub product_id: Uuid,
         pub name: String,
         pub price: u64,
@@ -487,7 +487,7 @@ mod test {
             .await
             .unwrap();
 
-        let sql = compile_database(
+        let _sql = compile_database(
             &pool,
             &[&Product::database_schema(), &Variant::database_schema()],
         )

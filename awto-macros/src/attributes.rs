@@ -1,4 +1,5 @@
 use bae::FromAttributes;
+use quote::ToTokens;
 use syn::spanned::Spanned;
 
 #[derive(Default, FromAttributes)]
@@ -13,14 +14,18 @@ pub struct ItemAttrs {
     pub default_raw: Option<syn::LitStr>,
     pub max_len: Option<syn::LitInt>,
     pub proto_type: Option<syn::LitStr>,
-    pub references: Option<KeyVal<syn::LitStr>>,
+    pub references: Option<KeyVal<syn::Ident, syn::LitStr>>,
     pub unique: Option<()>,
 }
 
 #[derive(Debug)]
-pub struct KeyVal<V: syn::parse::Parse>(pub syn::LitStr, pub V);
+pub struct KeyVal<K, V>(pub K, pub V);
 
-impl syn::parse::Parse for KeyVal<syn::LitStr> {
+impl<K, V> syn::parse::Parse for KeyVal<K, V>
+where
+    K: syn::parse::Parse,
+    V: syn::parse::Parse,
+{
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let lookahead = input.lookahead1();
         if !lookahead.peek(syn::token::Paren) {
@@ -31,37 +36,26 @@ impl syn::parse::Parse for KeyVal<syn::LitStr> {
         let group_span = group.span();
         let mut elems = group.elems.into_iter();
 
-        let first_expr = elems
-            .next()
-            .ok_or_else(|| syn::Error::new(group_span, "expected group (..., ...)"))?;
-        let first = if let syn::Expr::Lit(syn::ExprLit {
-            lit: syn::Lit::Str(lit_str),
-            ..
-        }) = first_expr
-        {
-            lit_str
-        } else {
-            return Err(syn::Error::new(
-                first_expr.span(),
-                "expected first item to be string `(\"first\", ...)`",
-            ));
-        };
+        let first: K = syn::parse2(
+            elems
+                .next()
+                .ok_or_else(|| syn::Error::new(group_span, "expected group (..., ...)"))?
+                .into_token_stream(),
+        )?;
 
-        let second_expr = elems
-            .next()
-            .ok_or_else(|| syn::Error::new(group_span, "expected group (..., ...)"))?;
-        let second = if let syn::Expr::Lit(syn::ExprLit {
-            lit: syn::Lit::Str(lit_str),
-            ..
-        }) = second_expr
-        {
-            lit_str
-        } else {
+        let second: V = syn::parse2(
+            elems
+                .next()
+                .ok_or_else(|| syn::Error::new(group_span, "expected group (..., ...)"))?
+                .into_token_stream(),
+        )?;
+
+        if elems.next().is_some() {
             return Err(syn::Error::new(
-                second_expr.span(),
-                "expected second item to be string `(..., \"second\")`",
+                group_span,
+                "expected group of only 2 items (..., ...)",
             ));
-        };
+        }
 
         Ok(KeyVal(first, second))
     }

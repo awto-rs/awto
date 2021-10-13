@@ -88,10 +88,35 @@ impl DeriveDatabaseModel {
                 };
                 let unique = field.attrs.unique.is_some();
                 let references = if let Some(references) = &field.attrs.references {
-                    let references_table = references.0.value();
+                    let references_table = &references.0;
+                    let references_table_string = references.0.to_string();
                     let references_column = references.1.value();
 
-                    quote!(Some((#references_table.to_string(), #references_column.to_string())))
+                    quote!({
+                        if !awto_schema::database::DatabaseSchema::columns(
+                            &<#references_table as awto_schema::database::IntoDatabaseSchema>::database_schema(),
+                        )
+                        .iter()
+                        .any(|column| column.name == #references_column)
+                        {
+                            panic!(concat!(
+                                "[error] ",
+                                file!(),
+                                ": column '",
+                                #references_column,
+                                "' does not exist on table ",
+                                #references_table_string
+                            ))
+                        }
+
+                        Some((
+                            awto_schema::database::DatabaseSchema::table_name(
+                                &<#references_table as awto_schema::database::IntoDatabaseSchema>::database_schema(),
+                            )
+                            .to_string(),
+                            #references_column.to_string(),
+                        ))
+                    })
                 } else {
                     quote!(None)
                 };
