@@ -32,16 +32,12 @@ fn generate_protobuf_message(message: &dyn ProtobufSchema) -> String {
 
     writeln!(proto, "message {} {{", message.message_name()).unwrap();
     for (i, field) in message.fields().iter().enumerate() {
-        let required = if field.required {
-            "required"
-        } else {
-            "optional"
-        };
+        let required = if field.required { "" } else { "optional " };
         writeln!(
             proto,
-            "  {required} {ty} {name} = {num};",
+            "  {required}{ty} {name} = {num};",
             required = required,
-            ty = field.ty,
+            ty = field.ty.to_string(),
             name = field.name,
             num = i + 1
         )
@@ -70,7 +66,7 @@ mod test {
 
     #[derive(Model)]
     pub struct Variant {
-        #[awto(references = ("product", "id"))]
+        #[awto(references = (Product, "id"))]
         pub product_id: Uuid,
         pub name: String,
         pub price: u64,
@@ -88,21 +84,21 @@ package schema;
 import "google/protobuf/timestamp.proto";
 
 message Product {
-  required string id = 1;
-  required google.protobuf.Timestamp created_at = 2;
-  required google.protobuf.Timestamp updated_at = 3;
-  required string name = 4;
-  required uint64 price = 5;
+  string id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  string name = 4;
+  uint64 price = 5;
   optional string description = 6;
 }
 
 message Variant {
-  required string id = 1;
-  required google.protobuf.Timestamp created_at = 2;
-  required google.protobuf.Timestamp updated_at = 3;
-  required string product_id = 4;
-  required string name = 5;
-  required uint64 price = 6;
+  string id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  string product_id = 4;
+  string name = 5;
+  uint64 price = 6;
 }
 "#
         )

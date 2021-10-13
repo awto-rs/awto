@@ -45,7 +45,7 @@ impl DeriveDatabaseModel {
             .iter()
             .map(|field| {
                 let name = field.field.ident.as_ref().unwrap().to_string();
-                let mut ty: TokenStream = if let Some(db_type) = &field.attrs.db_type {
+                let mut ty = if let Some(db_type) = &field.attrs.db_type {
                     if let Ok(db_type) = db_type.value().parse::<TokenStream>() {
                         quote!(awto_schema::database::DatabaseType::#db_type)
                     } else {

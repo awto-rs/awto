@@ -44,10 +44,14 @@ impl DeriveProtobufModel {
             .iter()
             .map(|field| {
                 let name = field.field.ident.as_ref().unwrap().to_string();
-                let ty = if let Some(db_type) = &field.attrs.proto_type {
-                    db_type.value()
-                } else if let Some(db_type) = Self::rust_to_proto_type(&field.field.ty) {
-                    db_type.to_string()
+                let ty = if let Some(proto_type) = &field.attrs.proto_type {
+                    if let Ok(proto_type) = proto_type.value().parse::<TokenStream>() {
+                        quote!(awto_schema::database::DatabaseType::#proto_type)
+                    } else {
+                        return Err(syn::Error::new(proto_type.span(), "invalid proto_type"));
+                    }
+                } else if let Some(proto_type) = Self::rust_to_proto_type(&field.field.ty) {
+                    proto_type
                 } else {
                     return Err(syn::Error::new(
                         field.field.ty.span(),
@@ -59,7 +63,7 @@ impl DeriveProtobufModel {
                 Ok(quote!(
                     awto_schema::protobuf::ProtobufField {
                         name: #name.to_string(),
-                        ty: #ty.to_string(),
+                        ty: #ty,
                         required: #required,
                     }
                 ))
@@ -105,7 +109,7 @@ impl DeriveProtobufModel {
         }
     }
 
-    fn rust_to_proto_type(ty: &syn::Type) -> Option<&'static str> {
+    fn rust_to_proto_type(ty: &syn::Type) -> Option<TokenStream> {
         let ty_string = match ty {
             syn::Type::Reference(reference) => {
                 let mut reference = reference.clone();
@@ -121,37 +125,37 @@ impl DeriveProtobufModel {
             ty_string.as_str()
         };
 
-        let db_type = match ty_str {
-            // Numeric types
-            "i16" | "i32" => "int32",
-            "u16" | "u32" => "uint32",
-            "i64" => "int64",
-            "u64" => "uint64",
-            "f32" => "float",
-            "f64" => "double",
+        Self::rust_str_to_proto_type(ty_str)
+            .map(|protobuf_type| quote!(awto_schema::protobuf::ProtobufType::#protobuf_type))
+    }
 
-            // Character types
-            "String" | "&str" => "string",
-
-            // Binary data types
-            "Vec<u8>" | "&u8" => "bytes",
-
-            // Date/Time types
-            "chrono::NaiveDateTime" | "NaiveDateTime" => "google.protobuf.Timestamp",
-            "chrono::DateTime" | "DateTime" => "google.protobuf.Timestamp",
-            "chrono::NaiveDate" | "NaiveDate" => "google.protobuf.Timestamp",
-            "chrono::NaiveTime" | "NaiveTime" => "google.protobuf.Timestamp",
-
-            // Boolean type
-            "bool" => "bool",
-
-            // Uuid type
-            "uuid::Uuid" | "Uuid" => "string",
-
-            _ => return None,
+    fn rust_str_to_proto_type(ty_str: &str) -> Option<TokenStream> {
+        let protobuf_type = match ty_str {
+            "f64" => quote!(Double),
+            "f32" => quote!(Float),
+            "i32" => quote!(Int32),
+            "i64" => quote!(Int64),
+            "u32" => quote!(Uint32),
+            "u64" => quote!(Uint64),
+            "bool" => quote!(Bool),
+            "String" | "&str" => quote!(String),
+            "Vec<u8>" | "&u8" => quote!(Bytes),
+            "chrono::NaiveDateTime" | "NaiveDateTime" | "chrono::DateTime" | "DateTime" => {
+                quote!(Timestamp)
+            }
+            "uuid::Uuid" | "Uuid" => quote!(String),
+            _ => {
+                if ty_str.starts_with("Vec<") {
+                    Self::rust_str_to_proto_type(&ty_str[4..(ty_str.len() - 1)]).map(|inner_ty| {
+                        quote!(Repeated(::std::boxed::Box::new(awto_schema::protobuf::ProtobufType::#inner_ty)))
+                    })?
+                } else {
+                    return None;
+                }
+            }
         };
 
-        Some(db_type)
+        Some(protobuf_type)
     }
 }
 
