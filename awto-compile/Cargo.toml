@@ -12,6 +12,7 @@ tokio = { version = "1.12", features = ["fs"], default-features = false }
 tonic-build = "0.5"
 
 [dev-dependencies]
+chrono = "0.4"
 tokio = { version = "1.12", features = ["full"] }
 uuid = "0.8"
 

@@ -462,10 +462,14 @@ mod test {
     use super::*;
     use awto_schema::database::IntoDatabaseSchema;
     use awto_schema::*;
+    use chrono::{DateTime, FixedOffset};
     use uuid::Uuid;
 
     #[derive(Model)]
     pub struct Product {
+        pub id: Uuid,
+        pub created_at: DateTime<FixedOffset>,
+        pub updated_at: DateTime<FixedOffset>,
         pub name: String,
         #[awto(default = 0)]
         pub price: u64,
@@ -475,6 +479,9 @@ mod test {
 
     #[derive(Model)]
     pub struct Variant {
+        pub id: Uuid,
+        pub created_at: DateTime<FixedOffset>,
+        pub updated_at: DateTime<FixedOffset>,
         #[awto(references = (Product, "id"))]
         pub product_id: Uuid,
         pub name: String,
@@ -483,37 +490,32 @@ mod test {
 
     #[tokio::test]
     async fn create_tables() {
-        let pool = PgPool::connect("postgres://ari@0.0.0.0:5432/product")
-            .await
-            .unwrap();
+        let sql = generate_table_create_sql(&Product::database_schema());
 
-        let _sql = compile_database(
-            &pool,
-            &[&Product::database_schema(), &Variant::database_schema()],
+        assert_eq!(
+            sql,
+            "CREATE TABLE IF NOT EXISTS product (
+  id uuid NOT NULL DEFAULT uuid_generate_v4() PRIMARY KEY,
+  created_at timestamp with time zone NOT NULL DEFAULT NOW(),
+  updated_at timestamp with time zone NOT NULL DEFAULT NOW(),
+  name character varying NOT NULL,
+  price bigint NOT NULL DEFAULT 0,
+  description character varying(120) NULL
+);"
+        );
+
+        let sql = generate_table_create_sql(&Variant::database_schema());
+
+        assert_eq!(
+            sql,
+            "CREATE TABLE IF NOT EXISTS variant (
+  id uuid NOT NULL DEFAULT uuid_generate_v4() PRIMARY KEY,
+  created_at timestamp with time zone NOT NULL DEFAULT NOW(),
+  updated_at timestamp with time zone NOT NULL DEFAULT NOW(),
+  product_id uuid NOT NULL REFERENCES product(id),
+  name character varying NOT NULL,
+  price bigint NOT NULL
+);"
         )
-        .await
-        .unwrap();
-
-        //         assert_eq!(
-        //             sql,
-        //             "CREATE TABLE IF NOT EXISTS product (
-        //   id uuid NOT NULL DEFAULT uuid_generate_v4() PRIMARY KEY,
-        //   created_at timestamptz NOT NULL DEFAULT NOW(),
-        //   updated_at timestamptz NOT NULL DEFAULT NOW(),
-        //   name varchar NOT NULL,
-        //   price bigint NOT NULL DEFAULT 0,
-        //   description varchar(256) NULL
-        // );
-
-        // CREATE TABLE IF NOT EXISTS variant (
-        //   id uuid NOT NULL DEFAULT uuid_generate_v4() PRIMARY KEY,
-        //   created_at timestamptz NOT NULL DEFAULT NOW(),
-        //   updated_at timestamptz NOT NULL DEFAULT NOW(),
-        //   product_id uuid NOT NULL REFERENCES product(id),
-        //   name varchar NOT NULL,
-        //   price bigint NOT NULL
-        // );
-        // "
-        //         )
     }
 }

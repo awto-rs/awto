@@ -88,6 +88,14 @@ pub struct ProtobufField {
     pub required: bool,
 }
 
+impl PartialEq for ProtobufField {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.ty.to_string() == other.ty.to_string()
+            && self.required == other.required
+    }
+}
+
 pub struct ProtobufMethod {
     pub name: String,
     pub param: Box<dyn ProtobufSchema>,
@@ -156,6 +164,7 @@ mod test {
     #[test]
     fn columns() {
         let fields = Product::protobuf_schema().fields();
+
         let expected = vec![
             ProtobufField {
                 name: "name".to_string(),

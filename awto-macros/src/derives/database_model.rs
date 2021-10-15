@@ -102,10 +102,38 @@ impl DeriveDatabaseModel {
                 } else if db_type_is_text {
                     ty = quote!(#ty(None));
                 }
+
                 let nullable = Self::is_type_option(&field.field.ty);
-                let default = if let Some(default_raw) = &field.attrs.default_raw {
+                if nullable && name == "id" {
+                    return Err(syn::Error::new(field.field.ty.span(), "`id` cannot be an Option"));
+                }
+                if nullable && name == "created_at" {
+                    return Err(syn::Error::new(field.field.ty.span(), "`created_at` cannot be an Option"));
+                }
+                if nullable && name == "updated_at" {
+                    return Err(syn::Error::new(field.field.ty.span(), "`updated_at` cannot be an Option"));
+                }
+
+                let verify_id_created_at_updated_at_custom_default = || {
+                    if name == "id" {
+                        return Err(syn::Error::new(field.field.ty.span(), "`id` cannot have a custom default"));
+                    }
+                    if name == "created_at" {
+                        return Err(syn::Error::new(field.field.ty.span(), "`created_at` cannot have a custom default"));
+                    }
+                    if name == "updated_at" {
+                        return Err(syn::Error::new(field.field.ty.span(), "`updated_at` cannot have a custom default"));
+                    }
+                    Ok(())
+                };
+
+                let mut default = if let Some(default_raw) = &field.attrs.default_raw {
+                    verify_id_created_at_updated_at_custom_default()?;
+
                     quote!(Some(awto_schema::database::DatabaseDefault::Raw(#default_raw.to_string())))
                 } else if let Some(default) = &field.attrs.default {
+                    verify_id_created_at_updated_at_custom_default()?;
+
                     if let Some(db_default) = Self::lit_to_db_default(default) {
                         quote!(Some(#db_default))
                     } else {
@@ -117,8 +145,34 @@ impl DeriveDatabaseModel {
                 } else {
                     quote!(None)
                 };
+                if name == "id" {
+                    default = quote!(Some(awto_schema::database::DatabaseDefault::Raw("uuid_generate_v4()".to_string())))
+                } else if name == "created_at" || name == "updated_at" {
+                    default = quote!(Some(awto_schema::database::DatabaseDefault::Raw("NOW()".to_string())))
+                }
+
                 let unique = field.attrs.unique.is_some();
+                if unique && name == "id" {
+                    return Err(syn::Error::new(field.field.ty.span(), "`id` cannot be marked as unique"));
+                }
+                if unique && name == "created_at" {
+                    return Err(syn::Error::new(field.field.ty.span(), "`created_at` cannot be marked as unique"));
+                }
+                if unique && name == "updated_at" {
+                    return Err(syn::Error::new(field.field.ty.span(), "`updated_at` cannot be marked as unique"));
+                }
+
                 let references = if let Some(references) = &field.attrs.references {
+                    if name == "id" {
+                        return Err(syn::Error::new(field.field.ty.span(), "`id` cannot reference another table"));
+                    }
+                    if name == "created_at" {
+                        return Err(syn::Error::new(field.field.ty.span(), "`created_at` cannot reference another table"));
+                    }
+                    if name == "updated_at" {
+                        return Err(syn::Error::new(field.field.ty.span(), "`updated_at` cannot reference another table"));
+                    }
+
                     let references_table = &references.0;
                     let references_table_string = references.0.to_string();
                     let references_column = references.1.value();
@@ -152,6 +206,8 @@ impl DeriveDatabaseModel {
                     quote!(None)
                 };
 
+                let primary_key = name == "id";
+
                 Ok(quote!(
                     awto_schema::database::DatabaseColumn {
                         name: #name.to_string(),
@@ -160,7 +216,7 @@ impl DeriveDatabaseModel {
                         default: #default,
                         unique: #unique,
                         constraint: None,
-                        primary_key: false,
+                        primary_key: #primary_key,
                         references: #references,
                     }
                 ))

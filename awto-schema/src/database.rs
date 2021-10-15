@@ -165,12 +165,19 @@ pub trait DatabaseSchema {
 
 #[cfg(test)]
 mod test {
+
+    use chrono::{DateTime, FixedOffset};
+    use uuid::Uuid;
+
     use super::*;
     use crate as awto_schema;
     use crate::*;
 
     #[derive(Model)]
     pub struct Product {
+        pub id: Uuid,
+        pub created_at: DateTime<FixedOffset>,
+        pub updated_at: DateTime<FixedOffset>,
         pub name: String,
         #[awto(default = 0)]
         pub price: u64,

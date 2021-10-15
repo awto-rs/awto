@@ -7,3 +7,7 @@ edition = "2018"
 awto-macros = { path = "../awto-macros" }
 dyn-clone = "1.0"
 lazy_static = "1.4"
+
+[dev-dependencies]
+chrono = "0.4"
+uuid = "0.8"

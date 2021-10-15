@@ -194,10 +194,14 @@ mod test {
     use super::*;
     use awto_schema::protobuf::IntoProtobufSchema;
     use awto_schema::*;
+    use chrono::{DateTime, FixedOffset};
     use uuid::Uuid;
 
     #[derive(Model)]
     pub struct Product {
+        pub id: Uuid,
+        pub created_at: DateTime<FixedOffset>,
+        pub updated_at: DateTime<FixedOffset>,
         pub name: String,
         #[awto(default = 0)]
         pub price: u64,
@@ -207,6 +211,9 @@ mod test {
 
     #[derive(Model)]
     pub struct Variant {
+        pub id: Uuid,
+        pub created_at: DateTime<FixedOffset>,
+        pub updated_at: DateTime<FixedOffset>,
         #[awto(references = (Product, "id"))]
         pub product_id: Uuid,
         pub name: String,
@@ -215,7 +222,7 @@ mod test {
 
     #[test]
     fn messages() {
-        let sql = compile_protobuf(
+        let sql = compile_protobuf_items(
             &[&Product::protobuf_schema(), &Variant::protobuf_schema()],
             &[],
         );
