@@ -3,6 +3,55 @@ use std::{env, fmt::Write};
 use awto::AwtoApp;
 use awto_schema::protobuf::{ProtobufMethod, ProtobufSchema, ProtobufService};
 
+/// Compiles a protobuf schema from a slice of [`ProtobufSchema`]s and [`ProtobufService`]s.
+///
+/// # Examples
+///
+/// ```
+/// # use awto_compile::protobuf::ProtobufCompiler;
+/// # use awto_compile::tests_cfg::*;
+/// let compiler = ProtobufCompiler::new(
+///     &[&ProductProtobufSchema, &VariantProtobufSchema],
+///     &[&ProductService],
+/// );
+/// let protobuf_file = compiler.compile_file();
+///
+/// assert_eq!(protobuf_file, r#"syntax = "proto3";
+///
+/// package schema;
+///
+/// import "google/protobuf/timestamp.proto";
+///
+/// message Product {
+///   string id = 1;
+///   google.protobuf.Timestamp created_at = 2;
+///   google.protobuf.Timestamp updated_at = 3;
+///   string name = 4;
+///   uint64 price = 5;
+///   optional string description = 6;
+/// }
+///
+/// message ProductId {
+///   string id = 1;
+/// }
+///
+/// message ProductList {
+///   repeated Product products = 1;
+/// }
+///
+/// message Variant {
+///   string id = 1;
+///   google.protobuf.Timestamp created_at = 2;
+///   google.protobuf.Timestamp updated_at = 3;
+///   string product_id = 4;
+///   string name = 5;
+///   uint64 price = 6;
+/// }
+///
+/// service ProductService {
+///   rpc FindProduct(ProductId) returns (ProductList);
+/// }"#);
+/// ```
 pub struct ProtobufCompiler<'a> {
     messages: &'a [&'a dyn ProtobufSchema],
     services: &'a [&'a dyn ProtobufService],
