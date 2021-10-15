@@ -1,4 +1,4 @@
-use std::{fmt, str, string};
+use std::{fmt, str};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum DatabaseType {
@@ -49,27 +49,27 @@ impl str::FromStr for DatabaseType {
     }
 }
 
-impl string::ToString for DatabaseType {
-    fn to_string(&self) -> String {
+impl fmt::Display for DatabaseType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SmallInt => "smallint".to_string(),
-            Self::Integer => "integer".to_string(),
-            Self::BigInt => "bigint".to_string(),
-            Self::Numeric(Some((p, s))) => format!("numeric({}, {})", p, s),
-            Self::Numeric(None) => "numeric".to_string(),
-            Self::Float => "real".to_string(),
-            Self::Double => "double precision".to_string(),
-            Self::Money => "money".to_string(),
-            Self::Text(Some(max)) => format!("character varying({})", max),
-            Self::Text(None) => "character varying".to_string(),
-            Self::Binary => "bytea".to_string(),
-            Self::Timestamp => "timestamp".to_string(),
-            Self::Timestamptz => "timestamp with time zone".to_string(),
-            Self::Date => "date".to_string(),
-            Self::Time => "time".to_string(),
-            Self::Timetz => "time with time zone".to_string(),
-            Self::Bool => "boolean".to_string(),
-            Self::Uuid => "uuid".to_string(),
+            Self::SmallInt => write!(f, "smallint"),
+            Self::Integer => write!(f, "integer"),
+            Self::BigInt => write!(f, "bigint"),
+            Self::Numeric(Some((p, s))) => write!(f, "numeric({}, {})", p, s),
+            Self::Numeric(None) => write!(f, "numeric"),
+            Self::Float => write!(f, "real"),
+            Self::Double => write!(f, "double precision"),
+            Self::Money => write!(f, "money"),
+            Self::Text(Some(max)) => write!(f, "character varying({})", max),
+            Self::Text(None) => write!(f, "character varying"),
+            Self::Binary => write!(f, "bytea"),
+            Self::Timestamp => write!(f, "timestamp"),
+            Self::Timestamptz => write!(f, "timestamp with time zone"),
+            Self::Date => write!(f, "date"),
+            Self::Time => write!(f, "time"),
+            Self::Timetz => write!(f, "time with time zone"),
+            Self::Bool => write!(f, "boolean"),
+            Self::Uuid => write!(f, "uuid"),
         }
     }
 }
@@ -165,7 +165,6 @@ pub trait DatabaseSchema {
 
 #[cfg(test)]
 mod test {
-
     use chrono::{DateTime, FixedOffset};
     use uuid::Uuid;
 

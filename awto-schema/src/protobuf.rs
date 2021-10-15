@@ -1,4 +1,7 @@
-use std::{fmt::Debug, str, string};
+use std::{
+    fmt::{self, Debug},
+    str,
+};
 
 use dyn_clone::DynClone;
 
@@ -56,27 +59,27 @@ impl str::FromStr for ProtobufType {
     }
 }
 
-impl string::ToString for ProtobufType {
-    fn to_string(&self) -> String {
+impl fmt::Display for ProtobufType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Double => "double".to_string(),
-            Self::Float => "float".to_string(),
-            Self::Int32 => "int32".to_string(),
-            Self::Int64 => "int64".to_string(),
-            Self::Uint32 => "uint32".to_string(),
-            Self::Uint64 => "uint64".to_string(),
-            Self::Sint32 => "sint32".to_string(),
-            Self::Sint64 => "sint64".to_string(),
-            Self::Fixed32 => "fixed32".to_string(),
-            Self::Fixed64 => "fixed64".to_string(),
-            Self::Sfixed32 => "sfixed32".to_string(),
-            Self::Sfixed64 => "sfixed64".to_string(),
-            Self::Bool => "bool".to_string(),
-            Self::String => "string".to_string(),
-            Self::Bytes => "bytes".to_string(),
-            Self::Repeated(inner) => format!("repeated {}", inner.to_string()),
-            Self::Timestamp => "google.protobuf.Timestamp".to_string(),
-            Self::Custom(inner) => inner.message_name().to_string(),
+            Self::Double => write!(f, "double"),
+            Self::Float => write!(f, "float"),
+            Self::Int32 => write!(f, "int32"),
+            Self::Int64 => write!(f, "int64"),
+            Self::Uint32 => write!(f, "uint32"),
+            Self::Uint64 => write!(f, "uint64"),
+            Self::Sint32 => write!(f, "sint32"),
+            Self::Sint64 => write!(f, "sint64"),
+            Self::Fixed32 => write!(f, "fixed32"),
+            Self::Fixed64 => write!(f, "fixed64"),
+            Self::Sfixed32 => write!(f, "sfixed32"),
+            Self::Sfixed64 => write!(f, "sfixed64"),
+            Self::Bool => write!(f, "bool"),
+            Self::String => write!(f, "string"),
+            Self::Bytes => write!(f, "bytes"),
+            Self::Repeated(inner) => write!(f, "repeated {}", inner),
+            Self::Timestamp => write!(f, "google.protobuf.Timestamp"),
+            Self::Custom(inner) => write!(f, "{}", inner.message_name()),
         }
     }
 }
