@@ -4,10 +4,17 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
+awto = { path = "../awto" }
 awto-schema = { path = "../awto-schema" }
 sqlx = { version = "0.5", features = ["postgres", "runtime-tokio-rustls"] }
 thiserror = "1.0"
+tokio = { version = "1.12", features = ["fs"], default-features = false }
+tonic-build = "0.5"
 
 [dev-dependencies]
 tokio = { version = "1.12", features = ["full"] }
 uuid = "0.8"
+
+[features]
+default = ["blocking"]
+blocking = ["tokio/rt"]

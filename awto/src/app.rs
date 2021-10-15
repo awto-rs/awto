@@ -1,4 +1,7 @@
-use awto_schema::{database::DatabaseSchema, protobuf::ProtobufSchema};
+use awto_schema::{
+    database::DatabaseSchema,
+    protobuf::{ProtobufSchema, ProtobufService},
+};
 
 pub trait AwtoApp {
     fn app_name() -> &'static str;
@@ -12,6 +15,10 @@ pub trait AwtoApp {
     }
 
     fn protobuf_schemas() -> &'static [&'static dyn ProtobufSchema] {
+        &[]
+    }
+
+    fn protobuf_services() -> &'static [&'static dyn ProtobufService] {
         &[]
     }
 }
@@ -29,73 +36,6 @@ impl Default for AppConfig {
             compile_protobuf: true,
         }
     }
-}
-
-#[macro_export]
-macro_rules! app {
-    ($( $i: ident ),*) => {
-        pub struct App;
-
-        impl ::awto::AwtoApp for App {
-            fn app_name() -> &'static str {
-                ::awto::app_name!()
-            }
-
-            fn app_config() -> ::awto::AppConfig {
-                ::awto::AppConfig::default()
-            }
-
-            fn database_schemas() -> &'static [&'static dyn ::awto_schema::database::DatabaseSchema] {
-                ::awto::database_schemas!($( $i ),*)
-            }
-
-            fn protobuf_schemas() -> &'static [&'static dyn ::awto_schema::protobuf::ProtobufSchema] {
-                ::awto::protobuf_schemas!($( $i ),*)
-            }
-        }
-    };
-    ($app_config: stmt, $( $i: ident ),*) => {
-        pub struct App;
-
-        impl ::awto::AwtoApp for App {
-            fn app_name() -> &'static str {
-                ::awto::app_name!()
-            }
-
-            fn app_config() -> ::awto::AppConfig {
-                $app_config
-            }
-
-            fn database_schemas() -> &'static [&'static dyn ::awto_schema::database::DatabaseSchema] {
-                ::awto::database_schemas!($( $i ),*)
-            }
-
-            fn protobuf_schemas() -> &'static [&'static dyn ::awto_schema::protobuf::ProtobufSchema] {
-                ::awto::protobuf_schemas!($( $i ),*)
-            }
-        }
-    };
-    ($name: literal, $app_config: stmt, $( $i: ident ),*) => {
-        pub struct App;
-
-        impl ::awto::AwtoApp for App {
-            fn app_name() -> &'static str {
-                $name
-            }
-
-            fn app_config() -> ::awto::AppConfig {
-                $app_config
-            }
-
-            fn database_schemas() -> &'static [&'static dyn ::awto_schema::database::DatabaseSchema] {
-                ::awto::database_schemas!($( $i ),*)
-            }
-
-            fn protobuf_schemas() -> &'static [&'static dyn ::awto_schema::protobuf::ProtobufSchema] {
-                ::awto::protobuf_schemas!($( $i ),*)
-            }
-        }
-    };
 }
 
 #[macro_export]
@@ -134,5 +74,57 @@ macro_rules! protobuf_schemas {
                 }
             ),*
         ]
+    };
+}
+
+#[macro_export]
+macro_rules! protobuf_services {
+    ($( $i: ident ),*) => {
+        ::awto::protobuf_services!(service: $( $i ),*)
+    };
+    ($module: ident : $( $i: ident ),*) => {
+        &[
+            $(
+                &crate::$module::$i
+            ),*
+        ]
+    };
+}
+
+#[macro_export(local_inner_macros)]
+macro_rules! app {
+    (schemas = ($( $schemas: ident ),*), services = ($( $services: ident ),*)) => {
+        app!(name = app_name!(), config = ::awto::AppConfig::default(), schemas = ($( $schemas ),*), services = ($( $services ),*));
+    };
+    (name = $name: expr, schemas = ($( $schemas: ident ),*), services = ($( $services: ident ),*)) => {
+        app!(name = $name, config = ::awto::AppConfig::default(), schemas = ($( $schemas ),*), services = ($( $services ),*));
+    };
+    (config = $app_config: stmt, schemas = ($( $schemas: ident ),*), services = ($( $services: ident ),*)) => {
+        app!(name = app_name!(), config = $app_config, schemas = ($( $schemas ),*), services = ($( $services ),*));
+    };
+    (name = $name: expr, config = $app_config: stmt, schemas = ($( $schemas: ident ),*), services = ($( $services: ident ),*)) => {
+        pub struct App;
+
+        impl ::awto::AwtoApp for App {
+            fn app_name() -> &'static str {
+                $name
+            }
+
+            fn app_config() -> ::awto::AppConfig {
+                $app_config
+            }
+
+            fn database_schemas() -> &'static [&'static dyn ::awto_schema::database::DatabaseSchema] {
+                ::awto::database_schemas!($( $schemas ),*)
+            }
+
+            fn protobuf_schemas() -> &'static [&'static dyn ::awto_schema::protobuf::ProtobufSchema] {
+                ::awto::protobuf_schemas!($( $schemas ),*)
+            }
+
+            fn protobuf_services() -> &'static [&'static dyn ::awto_schema::protobuf::ProtobufService] {
+                ::awto::protobuf_services!($( $services ),*)
+            }
+        }
     };
 }

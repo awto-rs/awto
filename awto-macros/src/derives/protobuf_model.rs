@@ -1,13 +1,13 @@
 use std::iter::FromIterator;
 
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, quote_spanned};
+use quote::{format_ident, quote};
 use syn::spanned::Spanned;
 
 use crate::{
     attributes::ItemAttrs,
     error::Error,
-    util::{parse_struct_fields, Field},
+    util::{parse_struct_fields, DeriveMacro, Field},
 };
 
 pub struct DeriveProtobufModel {
@@ -17,25 +17,8 @@ pub struct DeriveProtobufModel {
 }
 
 impl DeriveProtobufModel {
-    pub fn new(input: syn::DeriveInput) -> Result<Self, Error> {
-        let fields = parse_struct_fields::<ItemAttrs>(input.data)?;
-
-        let ident = input.ident;
-        let vis = input.vis;
-
-        Ok(DeriveProtobufModel { fields, ident, vis })
-    }
-
-    pub fn expand(&self) -> syn::Result<TokenStream> {
-        let expanded_impl_protobuf_schema = self.expand_impl_protobuf_schema()?;
-
-        Ok(TokenStream::from_iter([expanded_impl_protobuf_schema]))
-    }
-
     fn expand_impl_protobuf_schema(&self) -> syn::Result<TokenStream> {
-        let Self {
-            fields, ident, vis, ..
-        } = self;
+        let Self { fields, ident, vis } = self;
 
         let protobuf_schema_ident = format_ident!("{}ProtobufSchema", ident);
         let message_name = ident.to_string();
@@ -70,8 +53,6 @@ impl DeriveProtobufModel {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let fields_len = fields.len();
-
         Ok(quote!(
             #[derive(Clone, Copy, Default)]
             #vis struct #protobuf_schema_ident;
@@ -86,12 +67,120 @@ impl DeriveProtobufModel {
                 }
 
                 fn fields(&self) -> ::std::vec::Vec<awto_schema::protobuf::ProtobufField> {
-                    let mut fields = Vec::with_capacity(#fields_len + awto_schema::protobuf::DEFAULT_PROTOBUF_FIELDS.len());
-                    fields.extend(awto_schema::protobuf::DEFAULT_PROTOBUF_FIELDS.clone());
-                    fields.extend([
+                    vec![
                         #( #fields, )*
-                    ]);
-                    fields
+                    ]
+                }
+            }
+        ))
+    }
+
+    fn expand_impl_protobuf_generated_code(&self) -> syn::Result<TokenStream> {
+        let protobuf_schema_ident = format_ident!("{}ProtobufSchema", self.ident);
+
+        let expanded_impl_from_protobuf_schema_generated_string = self
+            .expand_impl_from_protobuf_schema_generated()?
+            .to_string();
+
+        Ok(quote!(
+            impl awto_schema::protobuf::ProtobufGeneratedCode for #protobuf_schema_ident {
+                fn code(&self) -> &'static str {
+                    #expanded_impl_from_protobuf_schema_generated_string
+                }
+            }
+        ))
+    }
+
+    fn expand_impl_from_protobuf_schema_generated(&self) -> syn::Result<TokenStream> {
+        let Self { fields, ident, .. } = self;
+
+        let schema_path = quote!(app::schema);
+
+        let mut from_rust_fields = Vec::new();
+        let mut from_proto_fields = Vec::new();
+
+        for field in fields {
+            let field_ident = field.field.ident.as_ref().unwrap();
+            let ty = &field.field.ty;
+
+            let ty_string = match ty {
+                syn::Type::Reference(reference) => {
+                    let mut reference = reference.clone();
+                    reference.lifetime = None;
+                    quote!(reference.elem.as_ref()).to_string()
+                }
+                other => quote!(#other).to_string(),
+            }
+            .replace(' ', "");
+            let ty_str = if ty_string.starts_with("Option<") {
+                &ty_string[7..(ty_string.len() - 1)]
+            } else {
+                ty_string.as_str()
+            };
+
+            match ty_str {
+                "chrono::NaiveDateTime"
+                | "NaiveDateTime"
+                | "chrono::DateTime<chrono::FixedOffset>"
+                | "chrono::DateTime<FixedOffset>"
+                | "DateTime<chrono::FixedOffset>"
+                | "DateTime<FixedOffset>" => {
+                    from_rust_fields.push(quote!(
+                        #field_ident: Some(::prost_types::Timestamp {
+                            nanos: val.#field_ident.timestamp_nanos() as i32,
+                            seconds: val.#field_ident.timestamp(),
+                        })
+                    ));
+                    from_proto_fields.push(quote!(
+                        #field_ident: {
+                            let unwrapped_value = val.#field_ident.unwrap();
+                            ::chrono::DateTime::from_utc(
+                                ::chrono::naive::NaiveDateTime::from_timestamp(
+                                    unwrapped_value.seconds,
+                                    unwrapped_value.nanos as u32
+                                ),
+                                ::chrono::FixedOffset::east(0),
+                            )
+                        }
+                    ));
+                }
+                "uuid::Uuid" | "Uuid" => {
+                    from_rust_fields.push(quote!(
+                        #field_ident: val.#field_ident.to_string()
+                    ));
+                    from_proto_fields.push(quote!(
+                        #field_ident: ::uuid::Uuid::parse_str(&val.#field_ident).unwrap()
+                    ));
+                }
+                _ => {
+                    if ty_str.starts_with("std::vec::Vec")
+                        || ty_str.starts_with("vec::Vec")
+                        || ty_str.starts_with("Vec")
+                    {
+                        from_rust_fields.push(quote!(#field_ident: val.#field_ident.into_iter().map(|v| v.into()).collect()));
+                        from_proto_fields.push(quote!(#field_ident: val.#field_ident.into_iter().map(|v| v.into()).collect()));
+                    } else {
+                        from_rust_fields.push(quote!(#field_ident: val.#field_ident.into()));
+                        from_proto_fields.push(quote!(#field_ident: val.#field_ident.into()));
+                    }
+                }
+            }
+        }
+
+        Ok(quote!(
+            impl From<#ident> for #schema_path::#ident {
+                fn from(val: #ident) -> Self {
+                    Self {
+                        #( #from_proto_fields, )*
+                    }
+                }
+            }
+
+            impl From<#schema_path::#ident> for #ident {
+                fn from(val: #schema_path::#ident) -> Self {
+                    Self {
+                        #( #from_rust_fields, )*
+                    }
                 }
             }
         ))
@@ -140,7 +229,12 @@ impl DeriveProtobufModel {
             "bool" => quote!(Bool),
             "String" | "&str" => quote!(String),
             "Vec<u8>" | "&u8" => quote!(Bytes),
-            "chrono::NaiveDateTime" | "NaiveDateTime" | "chrono::DateTime" | "DateTime" => {
+            "chrono::NaiveDateTime"
+            | "NaiveDateTime"
+            | "chrono::DateTime<chrono::FixedOffset>"
+            | "chrono::DateTime<FixedOffset>"
+            | "DateTime<chrono::FixedOffset>"
+            | "DateTime<FixedOffset>" => {
                 quote!(Timestamp)
             }
             "uuid::Uuid" | "Uuid" => quote!(String),
@@ -150,7 +244,8 @@ impl DeriveProtobufModel {
                         quote!(Repeated(::std::boxed::Box::new(awto_schema::protobuf::ProtobufType::#inner_ty)))
                     })?
                 } else {
-                    return None;
+                    let ty_parsed = format_ident!("{}ProtobufSchema", ty_str);
+                    quote!(Custom(::std::boxed::Box::new(#ty_parsed)))
                 }
             }
         };
@@ -159,14 +254,23 @@ impl DeriveProtobufModel {
     }
 }
 
-pub fn expand_derive_protobuf_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
-    let ident_span = input.ident.span();
+impl DeriveMacro for DeriveProtobufModel {
+    fn new(input: syn::DeriveInput) -> Result<Self, Error> {
+        let fields = parse_struct_fields::<ItemAttrs>(input.data)?;
 
-    match DeriveProtobufModel::new(input) {
-        Ok(model) => model.expand(),
-        Err(Error::InputNotStruct) => Ok(quote_spanned! {
-            ident_span => compile_error!("you can only derive DeriveProtobufModel on structs");
-        }),
-        Err(Error::Syn(err)) => Err(err),
+        let ident = input.ident;
+        let vis = input.vis;
+
+        Ok(DeriveProtobufModel { fields, ident, vis })
+    }
+
+    fn expand(&self) -> syn::Result<TokenStream> {
+        let expanded_impl_protobuf_schema = self.expand_impl_protobuf_schema()?;
+        let expanded_impl_protobuf_generated_code = self.expand_impl_protobuf_generated_code()?;
+
+        Ok(TokenStream::from_iter([
+            expanded_impl_protobuf_schema,
+            expanded_impl_protobuf_generated_code,
+        ]))
     }
 }

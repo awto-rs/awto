@@ -1,42 +1,5 @@
 use std::{fmt, str, string};
 
-use lazy_static::lazy_static;
-
-lazy_static! {
-    pub static ref DEFAULT_DATABASE_COLUMNS: [DatabaseColumn; 3] = [
-        DatabaseColumn {
-            name: "id".to_string(),
-            ty: DatabaseType::Uuid,
-            nullable: false,
-            default: Some(DatabaseDefault::Raw("uuid_generate_v4()".to_string())),
-            unique: false,
-            constraint: None,
-            primary_key: true,
-            references: None,
-        },
-        DatabaseColumn {
-            name: "created_at".to_string(),
-            ty: DatabaseType::Timestamptz,
-            nullable: false,
-            default: Some(DatabaseDefault::Raw("NOW()".to_string())),
-            unique: false,
-            constraint: None,
-            primary_key: false,
-            references: None,
-        },
-        DatabaseColumn {
-            name: "updated_at".to_string(),
-            ty: DatabaseType::Timestamptz,
-            nullable: false,
-            default: Some(DatabaseDefault::Raw("NOW()".to_string())),
-            unique: false,
-            constraint: None,
-            primary_key: false,
-            references: None,
-        },
-    ];
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum DatabaseType {
     SmallInt,

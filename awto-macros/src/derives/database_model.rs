@@ -2,13 +2,13 @@ use std::iter::FromIterator;
 
 use heck::SnakeCase;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, quote_spanned};
+use quote::{format_ident, quote, ToTokens};
 use syn::spanned::Spanned;
 
 use crate::{
     attributes::ItemAttrs,
     error::Error,
-    util::{parse_struct_fields, Field},
+    util::{parse_struct_fields, DeriveMacro, Field},
 };
 
 pub struct DeriveDatabaseModel {
@@ -18,21 +18,6 @@ pub struct DeriveDatabaseModel {
 }
 
 impl DeriveDatabaseModel {
-    pub fn new(input: syn::DeriveInput) -> Result<Self, Error> {
-        let fields = parse_struct_fields::<ItemAttrs>(input.data)?;
-
-        let ident = input.ident;
-        let vis = input.vis;
-
-        Ok(DeriveDatabaseModel { fields, ident, vis })
-    }
-
-    pub fn expand(&self) -> syn::Result<TokenStream> {
-        let expanded_impl_database_schema = self.expand_impl_database_schema()?;
-
-        Ok(TokenStream::from_iter([expanded_impl_database_schema]))
-    }
-
     fn expand_impl_database_schema(&self) -> syn::Result<TokenStream> {
         let Self {
             fields, ident, vis, ..
@@ -41,10 +26,56 @@ impl DeriveDatabaseModel {
         let database_schema_ident = format_ident!("{}DatabaseSchema", ident);
         let table_name = ident.to_string().to_snake_case();
 
+        macro_rules! check_field_exists {
+            ($field: literal, $ty: literal) => {
+                if !fields
+                    .iter()
+                    .any(|field| field.field.ident.as_ref().unwrap() == $field)
+                {
+                    return Err(syn::Error::new(
+                        ident.span(),
+                        concat!(
+                            "database models must have an `",
+                            $field,
+                            ": ",
+                            $ty,
+                            "` column"
+                        ),
+                    ));
+                }
+            };
+        }
+
+        check_field_exists!("id", "Uuid");
+        check_field_exists!("created_at", "DateTime<FixedOffset>");
+        check_field_exists!("updated_at", "DateTime<FixedOffset>");
+
         let columns = fields
             .iter()
             .map(|field| {
                 let name = field.field.ident.as_ref().unwrap().to_string();
+
+                let field_str = field.field.ty.to_token_stream().to_string().replace(' ', "");
+                if name == "id" && field_str != "uuid::Uuid" && field_str != "Uuid" {
+                    return Err(syn::Error::new(field.field.ty.span(), "`id` must be of type `Uuid`"));
+                }
+                if name == "created_at"
+                    && field_str != "chrono::DateTime<chrono::FixedOffset>"
+                    && field_str != "chrono::DateTime<FixedOffset>"
+                    && field_str != "DateTime<chrono::FixedOffset>"
+                    && field_str != "DateTime<FixedOffset>"
+                {
+                    return Err(syn::Error::new(field.field.ty.span(), "`created_at` must be of type `DateTime<FixedOffset>`"));
+                }
+                if name == "updated_at"
+                    && field_str != "chrono::DateTime<chrono::FixedOffset>"
+                    && field_str != "chrono::DateTime<FixedOffset>"
+                    && field_str != "DateTime<chrono::FixedOffset>"
+                    && field_str != "DateTime<FixedOffset>"
+                {
+                    return Err(syn::Error::new(field.field.ty.span(), "`updated_at` must be of type `DateTime<FixedOffset>`"));
+                }
+
                 let mut ty = if let Some(db_type) = &field.attrs.db_type {
                     if let Ok(db_type) = db_type.value().parse::<TokenStream>() {
                         quote!(awto_schema::database::DatabaseType::#db_type)
@@ -125,7 +156,6 @@ impl DeriveDatabaseModel {
                     awto_schema::database::DatabaseColumn {
                         name: #name.to_string(),
                         ty: #ty,
-                        // ty: awto_schema::database::DatabaseType::BigInt,
                         nullable: #nullable,
                         default: #default,
                         unique: #unique,
@@ -136,8 +166,6 @@ impl DeriveDatabaseModel {
                 ))
             })
             .collect::<Result<Vec<_>, _>>()?;
-
-        let columns_len = columns.len();
 
         Ok(quote!(
             #[derive(Clone, Copy, Default)]
@@ -153,12 +181,9 @@ impl DeriveDatabaseModel {
                 }
 
                 fn columns(&self) -> ::std::vec::Vec<awto_schema::database::DatabaseColumn> {
-                    let mut cols = Vec::with_capacity(#columns_len + awto_schema::database::DEFAULT_DATABASE_COLUMNS.len());
-                    cols.extend(awto_schema::database::DEFAULT_DATABASE_COLUMNS.clone());
-                    cols.extend([
+                    vec![
                         #( #columns, )*
-                    ]);
-                    cols
+                    ]
                 }
             }
         ))
@@ -221,7 +246,10 @@ impl DeriveDatabaseModel {
 
             // Date/Time types
             "chrono::NaiveDateTime" | "NaiveDateTime" => quote!(Timestamp),
-            "chrono::DateTime" | "DateTime" => quote!(Timestamptz),
+            "chrono::DateTime<chrono::FixedOffset>"
+            | "chrono::DateTime<FixedOffset>"
+            | "DateTime<chrono::FixedOffset>"
+            | "DateTime<FixedOffset>" => quote!(Timestamptz),
             "chrono::NaiveDate" | "NaiveDate" => quote!(Date),
             "chrono::NaiveTime" | "NaiveTime" => quote!(Time),
 
@@ -238,14 +266,19 @@ impl DeriveDatabaseModel {
     }
 }
 
-pub fn expand_derive_database_model(input: syn::DeriveInput) -> syn::Result<TokenStream> {
-    let ident_span = input.ident.span();
+impl DeriveMacro for DeriveDatabaseModel {
+    fn new(input: syn::DeriveInput) -> Result<Self, Error> {
+        let fields = parse_struct_fields::<ItemAttrs>(input.data)?;
 
-    match DeriveDatabaseModel::new(input) {
-        Ok(model) => model.expand(),
-        Err(Error::InputNotStruct) => Ok(quote_spanned! {
-            ident_span => compile_error!("you can only derive DeriveDatabaseModel on structs");
-        }),
-        Err(Error::Syn(err)) => Err(err),
+        let ident = input.ident;
+        let vis = input.vis;
+
+        Ok(DeriveDatabaseModel { fields, ident, vis })
+    }
+
+    fn expand(&self) -> syn::Result<TokenStream> {
+        let expanded_impl_database_schema = self.expand_impl_database_schema()?;
+
+        Ok(TokenStream::from_iter([expanded_impl_database_schema]))
     }
 }

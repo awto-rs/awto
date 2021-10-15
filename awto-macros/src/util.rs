@@ -1,6 +1,25 @@
 use bae::TryFromAttributes;
+use proc_macro2::TokenStream;
 
 use crate::error::Error;
+
+pub trait DeriveMacro {
+    fn new(input: syn::DeriveInput) -> Result<Self, Error>
+    where
+        Self: Sized;
+
+    fn expand(&self) -> syn::Result<TokenStream>;
+}
+
+pub trait ProcMacro {
+    type Input;
+
+    fn new(args: syn::AttributeArgs, input: Self::Input) -> Result<Self, Error>
+    where
+        Self: Sized;
+
+    fn expand(&self) -> syn::Result<TokenStream>;
+}
 
 pub struct Field<Attr> {
     pub attrs: Attr,
