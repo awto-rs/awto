@@ -1,54 +1,6 @@
 use std::{env, fmt::Write};
 
-#[cfg(feature = "async")]
-use async_trait::async_trait;
 use awto_schema::protobuf::{ProtobufField, ProtobufMethod, ProtobufSchema, ProtobufService};
-
-#[cfg(feature = "async")]
-#[async_trait]
-pub trait AppProtobufCompile {
-    async fn compile_protobuf() -> Result<(), Box<dyn std::error::Error>>;
-}
-
-#[cfg(feature = "async")]
-#[async_trait]
-impl<App> AppProtobufCompile for App
-where
-    App: AwtoApp,
-{
-    async fn compile_protobuf() -> Result<(), Box<dyn std::error::Error>> {
-        use tokio::fs;
-        use tokio::io::AsyncWriteExt;
-
-        let app_config = A::app_config();
-        let out_dir = env::var("OUT_DIR").unwrap();
-
-        if !app_config.compile_protobuf {
-            return Ok(());
-        }
-
-        let protobuf_schemas = A::protobuf_schemas();
-        let protobuf_services = A::protobuf_services();
-        let protobuf_compiler = ProtobufCompiler::new(protobuf_schemas, protobuf_services);
-
-        let proto = protobuf_compiler.compile_file();
-        let proto_path = format!("{}/schema.proto", out_dir);
-        fs::write(&proto_path, proto + "\n").await?;
-
-        tonic_build::configure().compile(&[&proto_path], &[&out_dir])?;
-
-        let generated_code = protobuf_compiler.compile_generated_code();
-        if !generated_code.is_empty() {
-            let rs_path = format!("{}/schema.rs", out_dir);
-            let mut schema_file = fs::OpenOptions::new().append(true).open(&rs_path).await?;
-
-            schema_file.write(generated_code.as_bytes()).await?;
-            schema_file.sync_all().await?;
-        }
-
-        Ok(())
-    }
-}
 
 #[cfg(feature = "async")]
 pub fn compile_protobuf(
