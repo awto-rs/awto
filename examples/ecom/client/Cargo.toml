@@ -1,0 +1,9 @@
+[package]
+name = "client"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+proto = { path = "../proto" }
+tokio = { version = "1.12", features = ["full"] }
+tonic = "0.5"
