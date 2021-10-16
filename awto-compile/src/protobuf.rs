@@ -74,9 +74,10 @@ pub fn compile_protobuf(
 /// ```
 /// # use awto_compile::protobuf::ProtobufCompiler;
 /// # use awto_compile::tests_cfg::*;
+/// # use awto_schema::protobuf::{IntoProtobufSchema, IntoProtobufService};
 /// let compiler = ProtobufCompiler::new(
-///     &[&ProductProtobufSchema, &VariantProtobufSchema],
-///     &[&ProductService],
+///     vec![Product::protobuf_schema(), Variant::protobuf_schema()],
+///     vec![ProductService::protobuf_service()],
 /// );
 /// let protobuf_file = compiler.compile_file();
 ///

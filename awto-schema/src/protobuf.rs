@@ -122,7 +122,7 @@ pub struct ProtobufService {
 mod test {
     use super::*;
     use crate as awto_schema;
-    use crate::*;
+    use crate::prelude::*;
 
     #[derive(ProtobufModel)]
     pub struct Product {
