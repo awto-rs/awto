@@ -25,7 +25,7 @@ impl ProtobufService {
     fn expand_impl_protobuf_service(&self) -> syn::Result<TokenStream> {
         let Self { ident, items, .. } = self;
 
-        let service_name = ident.to_string();
+        let name = ident.to_string();
 
         let mut validators = Vec::new();
         let mut methods = Vec::new();
@@ -61,15 +61,11 @@ impl ProtobufService {
                             impl #return_type_validator_ident for #returns {}
                     ));
 
-                    let param = format_ident!("{}ProtobufSchema", param);
-
-                    let returns = format_ident!("{}ProtobufSchema", returns);
-
                     methods.push(quote!(
                         awto_schema::protobuf::ProtobufMethod {
                             name: #name.to_string(),
-                            param: Box::new(#param),
-                            returns: Box::new(#returns),
+                            param: <#param as awto_schema::protobuf::IntoProtobufSchema>::protobuf_schema(),
+                            returns: <#returns as awto_schema::protobuf::IntoProtobufSchema>::protobuf_schema(),
                         }
                     ))
                 }
@@ -77,16 +73,29 @@ impl ProtobufService {
             }
         }
 
-        Ok(quote!(
-            impl awto_schema::protobuf::ProtobufService for #ident {
-                fn service_name(&self) -> &'static str {
-                    #service_name
-                }
+        let expanded_impl_protobuf_service_generated_string =
+            self.expand_impl_protobuf_service_generated()?;
+        let generated_code = if expanded_impl_protobuf_service_generated_string.is_empty() {
+            quote!(None)
+        } else {
+            let generated_string = expanded_impl_protobuf_service_generated_string
+                .to_string()
+                .split("__service_module_path__")
+                .collect::<Vec<_>>()
+                .join("\"###, module_path!(), r###\"");
+            let generated_string_expanded: TokenStream =
+                format!("r###\"{}\"###", generated_string).parse().unwrap();
+            quote!(Some(concat!(#generated_string_expanded).to_string()))
+        };
 
-                fn methods(&self) -> Vec<awto_schema::protobuf::ProtobufMethod> {
-                    vec![
-                        #( #methods, )*
-                    ]
+        Ok(quote!(
+            impl awto_schema::protobuf::IntoProtobufService for #ident {
+                fn protobuf_service() -> awto_schema::protobuf::ProtobufService {
+                    awto_schema::protobuf::ProtobufService {
+                        name: #name.to_string(),
+                        methods: vec![ #( #methods, )* ],
+                        generated_code: #generated_code,
+                    }
                 }
             }
 
@@ -94,25 +103,10 @@ impl ProtobufService {
         ))
     }
 
-    fn expand_impl_protobuf_generated_code(&self) -> syn::Result<TokenStream> {
-        let Self { ident, .. } = self;
-
-        let expanded_impl_protobuf_service_generated_string =
-            self.expand_impl_protobuf_service_generated()?.to_string();
-
-        Ok(quote!(
-            impl awto_schema::protobuf::ProtobufGeneratedCode for #ident {
-                fn code(&self) -> &'static str {
-                    #expanded_impl_protobuf_service_generated_string
-                }
-            }
-        ))
-    }
-
     fn expand_impl_protobuf_service_generated(&self) -> syn::Result<TokenStream> {
         let Self { ident, items, .. } = self;
 
-        let service_path = quote!(app::service);
+        let service_path = quote!(__service_module_path__);
         let service_server_name = format_ident!("{}_server", ident.to_string().to_snake_case());
 
         let mut methods = Vec::new();
@@ -311,12 +305,10 @@ impl ProcMacro for ProtobufService {
 
         let expanded_input = quote!(#input);
         let expanded_impl_protobuf_service = self.expand_impl_protobuf_service()?;
-        let expanded_impl_protobuf_generated_code = self.expand_impl_protobuf_generated_code()?;
 
         Ok(TokenStream::from_iter([
             expanded_input,
             expanded_impl_protobuf_service,
-            expanded_impl_protobuf_generated_code,
         ]))
     }
 }

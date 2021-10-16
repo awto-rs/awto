@@ -1,7 +1,119 @@
 use std::{env, fmt::Write};
 
-use awto::AwtoApp;
-use awto_schema::protobuf::{ProtobufMethod, ProtobufSchema, ProtobufService};
+#[cfg(feature = "async")]
+use async_trait::async_trait;
+use awto_schema::protobuf::{ProtobufField, ProtobufMethod, ProtobufSchema, ProtobufService};
+
+#[cfg(feature = "async")]
+#[async_trait]
+pub trait AppProtobufCompile {
+    async fn compile_protobuf() -> Result<(), Box<dyn std::error::Error>>;
+}
+
+#[cfg(feature = "async")]
+#[async_trait]
+impl<App> AppProtobufCompile for App
+where
+    App: AwtoApp,
+{
+    async fn compile_protobuf() -> Result<(), Box<dyn std::error::Error>> {
+        use tokio::fs;
+        use tokio::io::AsyncWriteExt;
+
+        let app_config = A::app_config();
+        let out_dir = env::var("OUT_DIR").unwrap();
+
+        if !app_config.compile_protobuf {
+            return Ok(());
+        }
+
+        let protobuf_schemas = A::protobuf_schemas();
+        let protobuf_services = A::protobuf_services();
+        let protobuf_compiler = ProtobufCompiler::new(protobuf_schemas, protobuf_services);
+
+        let proto = protobuf_compiler.compile_file();
+        let proto_path = format!("{}/schema.proto", out_dir);
+        fs::write(&proto_path, proto + "\n").await?;
+
+        tonic_build::configure().compile(&[&proto_path], &[&out_dir])?;
+
+        let generated_code = protobuf_compiler.compile_generated_code();
+        if !generated_code.is_empty() {
+            let rs_path = format!("{}/schema.rs", out_dir);
+            let mut schema_file = fs::OpenOptions::new().append(true).open(&rs_path).await?;
+
+            schema_file.write(generated_code.as_bytes()).await?;
+            schema_file.sync_all().await?;
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "async")]
+pub fn compile_protobuf(
+    schemas: Vec<ProtobufSchema>,
+    services: Vec<ProtobufService>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use tokio::fs;
+    use tokio::io::AsyncWriteExt;
+
+    let app_config = A::app_config();
+    let out_dir = env::var("OUT_DIR").unwrap();
+
+    if !app_config.compile_protobuf {
+        return Ok(());
+    }
+
+    let protobuf_compiler = ProtobufCompiler::new(schemas, services);
+
+    let proto = protobuf_compiler.compile_file();
+    let proto_path = format!("{}/schema.proto", out_dir);
+    fs::write(&proto_path, proto + "\n").await?;
+
+    tonic_build::configure().compile(&[&proto_path], &[&out_dir])?;
+
+    let generated_code = protobuf_compiler.compile_generated_code();
+    if !generated_code.is_empty() {
+        let rs_path = format!("{}/schema.rs", out_dir);
+        let mut schema_file = fs::OpenOptions::new().append(true).open(&rs_path).await?;
+
+        schema_file.write(generated_code.as_bytes()).await?;
+        schema_file.sync_all().await?;
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "async"))]
+pub fn compile_protobuf(
+    schemas: Vec<ProtobufSchema>,
+    services: Vec<ProtobufService>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs;
+    use std::io::Write;
+
+    let out_dir = env::var("OUT_DIR").unwrap();
+
+    let protobuf_compiler = ProtobufCompiler::new(schemas, services);
+
+    let proto = protobuf_compiler.compile_file();
+    let proto_path = format!("{}/schema.proto", out_dir);
+    fs::write(&proto_path, proto + "\n")?;
+
+    tonic_build::configure().compile(&[&proto_path], &[&out_dir])?;
+
+    let generated_code = protobuf_compiler.compile_generated_code();
+    if !generated_code.is_empty() {
+        let rs_path = format!("{}/schema.rs", out_dir);
+        let mut schema_file = fs::OpenOptions::new().append(true).open(&rs_path)?;
+
+        write!(schema_file, "{}", generated_code)?;
+        schema_file.sync_all()?;
+    }
+
+    Ok(())
+}
 
 /// Compiles a protobuf schema from a slice of [`ProtobufSchema`]s and [`ProtobufService`]s.
 ///
@@ -52,31 +164,14 @@ use awto_schema::protobuf::{ProtobufMethod, ProtobufSchema, ProtobufService};
 ///   rpc FindProduct(ProductId) returns (ProductList);
 /// }"#);
 /// ```
-pub struct ProtobufCompiler<'a> {
-    messages: &'a [&'a dyn ProtobufSchema],
-    services: &'a [&'a dyn ProtobufService],
+pub struct ProtobufCompiler {
+    messages: Vec<ProtobufSchema>,
+    services: Vec<ProtobufService>,
 }
 
-enum AggregatedMessage<'a> {
-    Borrowed(&'a dyn ProtobufSchema),
-    Owned(Box<dyn ProtobufSchema>),
-}
-
-impl<'a> AggregatedMessage<'a> {
-    fn as_ref(&'a self) -> &'a dyn ProtobufSchema {
-        match self {
-            AggregatedMessage::Borrowed(val) => *val,
-            AggregatedMessage::Owned(val) => val.as_ref(),
-        }
-    }
-}
-
-impl<'a> ProtobufCompiler<'a> {
+impl ProtobufCompiler {
     /// Creates a new instance of [`ProtobufCompiler`].
-    pub fn new(
-        messages: &'a [&'a dyn ProtobufSchema],
-        services: &'a [&'a dyn ProtobufService],
-    ) -> ProtobufCompiler<'a> {
+    pub fn new(messages: Vec<ProtobufSchema>, services: Vec<ProtobufService>) -> ProtobufCompiler {
         ProtobufCompiler { messages, services }
     }
 
@@ -88,11 +183,11 @@ impl<'a> ProtobufCompiler<'a> {
         writeln!(proto).unwrap();
 
         for message in self.all_distinct_messages() {
-            writeln!(proto, "{}", self.write_protobuf_message(message.as_ref())).unwrap();
+            writeln!(proto, "{}", self.write_protobuf_message(message)).unwrap();
         }
 
-        for service in self.services {
-            writeln!(proto, "{}", self.write_protobuf_service(*service)).unwrap();
+        for service in &self.services {
+            writeln!(proto, "{}", self.write_protobuf_service(service)).unwrap();
         }
 
         proto.trim().to_string()
@@ -103,33 +198,33 @@ impl<'a> ProtobufCompiler<'a> {
         let mut code = String::new();
 
         for message in self.all_distinct_messages() {
-            write!(code, "{}", message.as_ref().code()).unwrap();
+            if let Some(generated_code) = &message.generated_code {
+                write!(code, "{}", generated_code).unwrap();
+            }
         }
 
-        for service in self.services {
-            write!(code, "{}", service.code()).unwrap();
+        for service in &self.services {
+            if let Some(generated_code) = &service.generated_code {
+                write!(code, "{}", generated_code).unwrap();
+            }
         }
 
         code.trim().to_string()
     }
 
-    fn all_distinct_messages(&self) -> Vec<AggregatedMessage<'a>> {
+    fn all_distinct_messages(&self) -> Vec<&ProtobufSchema> {
         let mut all_messages = self.services.iter().fold(Vec::new(), |mut acc, service| {
-            for method in (*service).methods() {
-                acc.push(AggregatedMessage::Owned(method.param));
-                acc.push(AggregatedMessage::Owned(method.returns));
+            for method in &service.methods {
+                acc.push(&method.param);
+                acc.push(&method.returns);
             }
 
             acc
         });
-        all_messages.extend(
-            self.messages
-                .iter()
-                .map(|message| AggregatedMessage::Borrowed(*message)),
-        );
+        all_messages.extend(&self.messages);
 
-        all_messages.sort_by_key(|message| message.as_ref().message_name());
-        all_messages.dedup_by_key(|message| message.as_ref().message_name());
+        all_messages.sort_by_key(|message| message.name.as_str());
+        all_messages.dedup_by_key(|message| message.name.as_str());
 
         all_messages
     }
@@ -146,26 +241,13 @@ impl<'a> ProtobufCompiler<'a> {
         proto
     }
 
-    fn write_protobuf_message(&self, message: &dyn ProtobufSchema) -> String {
+    fn write_protobuf_message(&self, message: &ProtobufSchema) -> String {
         let mut proto = String::new();
 
-        writeln!(proto, "message {} {{", message.message_name()).unwrap();
+        writeln!(proto, "message {} {{", message.name).unwrap();
 
-        for (i, field) in message.fields().iter().enumerate() {
-            write!(proto, "  ").unwrap();
-
-            if !field.required {
-                write!(proto, "optional ").unwrap();
-            }
-
-            writeln!(
-                proto,
-                "{ty} {name} = {num};",
-                ty = field.ty,
-                name = field.name,
-                num = i + 1
-            )
-            .unwrap();
+        for (i, field) in message.fields.iter().enumerate() {
+            writeln!(proto, "  {}", self.write_protobuf_field(field, i)).unwrap();
         }
 
         writeln!(proto, "}}").unwrap();
@@ -173,14 +255,33 @@ impl<'a> ProtobufCompiler<'a> {
         proto
     }
 
-    fn write_protobuf_service(&self, service: &dyn ProtobufService) -> String {
+    fn write_protobuf_field(&self, field: &ProtobufField, index: usize) -> String {
         let mut proto = String::new();
 
-        writeln!(proto, "service {} {{", service.service_name()).unwrap();
+        if !field.required {
+            write!(proto, "optional ").unwrap();
+        }
 
-        service.methods().iter().for_each(|method| {
-            write!(proto, "{}", self.write_protobuf_method(method)).unwrap();
-        });
+        write!(
+            proto,
+            "{ty} {name} = {num};",
+            ty = field.ty,
+            name = field.name,
+            num = index + 1
+        )
+        .unwrap();
+
+        proto
+    }
+
+    fn write_protobuf_service(&self, service: &ProtobufService) -> String {
+        let mut proto = String::new();
+
+        writeln!(proto, "service {} {{", service.name).unwrap();
+
+        for method in &service.methods {
+            write!(proto, "  {}", self.write_protobuf_method(method)).unwrap();
+        }
 
         writeln!(proto, "}}").unwrap();
 
@@ -192,81 +293,13 @@ impl<'a> ProtobufCompiler<'a> {
 
         writeln!(
             proto,
-            "  rpc {name}({param}) returns ({returns});",
+            "rpc {name}({param}) returns ({returns});",
             name = method.name,
-            param = method.param.message_name(),
-            returns = method.returns.message_name(),
+            param = method.param.name,
+            returns = method.returns.name,
         )
         .unwrap();
 
         proto
     }
-}
-
-#[cfg(feature = "async")]
-pub async fn compile_protobuf<A: AwtoApp>(app: A) -> Result<(), Box<dyn std::error::Error>> {
-    use tokio::fs;
-    use tokio::io::AsyncWriteExt;
-
-    let app_config = A::app_config();
-    let out_dir = env::var("OUT_DIR").unwrap();
-
-    if !app_config.compile_protobuf {
-        return Ok(());
-    }
-
-    let protobuf_schemas = A::protobuf_schemas();
-    let protobuf_services = A::protobuf_services();
-    let protobuf_compiler = ProtobufCompiler::new(protobuf_schemas, protobuf_services);
-
-    let proto = protobuf_compiler.compile_file();
-    let proto_path = format!("{}/schema.proto", out_dir);
-    fs::write(&proto_path, proto + "\n").await?;
-
-    tonic_build::configure().compile(&[&proto_path], &[&out_dir])?;
-
-    let generated_code = protobuf_compiler.compile_generated_code();
-    if !generated_code.is_empty() {
-        let rs_path = format!("{}/schema.rs", out_dir);
-        let mut schema_file = fs::OpenOptions::new().append(true).open(&rs_path).await?;
-
-        schema_file.write(generated_code.as_bytes()).await?;
-        schema_file.sync_all().await?;
-    }
-
-    Ok(())
-}
-
-#[cfg(not(feature = "async"))]
-pub fn compile_protobuf<A: AwtoApp>(_app: A) -> Result<(), Box<dyn std::error::Error>> {
-    use std::fs;
-    use std::io::Write;
-
-    let app_config = A::app_config();
-    let out_dir = env::var("OUT_DIR").unwrap();
-
-    if !app_config.compile_protobuf {
-        return Ok(());
-    }
-
-    let protobuf_schemas = A::protobuf_schemas();
-    let protobuf_services = A::protobuf_services();
-    let protobuf_compiler = ProtobufCompiler::new(protobuf_schemas, protobuf_services);
-
-    let proto = protobuf_compiler.compile_file();
-    let proto_path = format!("{}/schema.proto", out_dir);
-    fs::write(&proto_path, proto + "\n")?;
-
-    tonic_build::configure().compile(&[&proto_path], &[&out_dir])?;
-
-    let generated_code = protobuf_compiler.compile_generated_code();
-    if !generated_code.is_empty() {
-        let rs_path = format!("{}/schema.rs", out_dir);
-        let mut schema_file = fs::OpenOptions::new().append(true).open(&rs_path)?;
-
-        write!(schema_file, "{}", generated_code)?;
-        schema_file.sync_all()?;
-    }
-
-    Ok(())
 }

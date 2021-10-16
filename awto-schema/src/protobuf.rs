@@ -3,9 +3,7 @@ use std::{
     str,
 };
 
-use dyn_clone::DynClone;
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ProtobufType {
     Double,
     Float,
@@ -24,7 +22,7 @@ pub enum ProtobufType {
     Bytes,
     Repeated(Box<ProtobufType>),
     Timestamp,
-    Custom(Box<dyn ProtobufSchema>),
+    Custom(ProtobufSchema),
 }
 
 pub struct ProtobufTypeFromStrError;
@@ -79,68 +77,45 @@ impl fmt::Display for ProtobufType {
             Self::Bytes => write!(f, "bytes"),
             Self::Repeated(inner) => write!(f, "repeated {}", inner),
             Self::Timestamp => write!(f, "google.protobuf.Timestamp"),
-            Self::Custom(inner) => write!(f, "{}", inner.message_name()),
+            Self::Custom(inner) => write!(f, "{}", inner.name),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtobufField {
     pub name: String,
     pub ty: ProtobufType,
     pub required: bool,
 }
 
-impl PartialEq for ProtobufField {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && self.ty.to_string() == other.ty.to_string()
-            && self.required == other.required
-    }
-}
-
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtobufMethod {
     pub name: String,
-    pub param: Box<dyn ProtobufSchema>,
-    pub returns: Box<dyn ProtobufSchema>,
+    pub param: ProtobufSchema,
+    pub returns: ProtobufSchema,
 }
 
 pub trait IntoProtobufSchema {
-    type Schema: ProtobufSchema + Default;
-
-    fn protobuf_schema() -> Self::Schema {
-        Self::Schema::default()
-    }
+    fn protobuf_schema() -> ProtobufSchema;
 }
 
-pub trait ProtobufSchema: ProtobufGeneratedCode + DynClone {
-    fn message_name(&self) -> &'static str;
-
-    fn fields(&self) -> Vec<ProtobufField>;
+pub trait IntoProtobufService {
+    fn protobuf_service() -> ProtobufService;
 }
 
-dyn_clone::clone_trait_object!(ProtobufSchema);
-
-impl Debug for dyn ProtobufSchema {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message_name())
-    }
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ProtobufSchema {
+    pub name: String,
+    pub fields: Vec<ProtobufField>,
+    pub generated_code: Option<String>,
 }
 
-impl PartialEq for dyn ProtobufSchema {
-    fn eq(&self, other: &Self) -> bool {
-        self.message_name() == other.message_name()
-    }
-}
-
-pub trait ProtobufService: ProtobufGeneratedCode {
-    fn service_name(&self) -> &'static str;
-
-    fn methods(&self) -> Vec<ProtobufMethod>;
-}
-
-pub trait ProtobufGeneratedCode {
-    fn code(&self) -> &'static str;
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ProtobufService {
+    pub name: String,
+    pub methods: Vec<ProtobufMethod>,
+    pub generated_code: Option<String>,
 }
 
 #[cfg(test)]
@@ -161,12 +136,12 @@ mod test {
 
     #[test]
     fn message_name() {
-        assert_eq!(Product::protobuf_schema().message_name(), "Product");
+        assert_eq!(Product::protobuf_schema().name, "Product");
     }
 
     #[test]
     fn columns() {
-        let fields = Product::protobuf_schema().fields();
+        let fields = Product::protobuf_schema().fields;
 
         let expected = vec![
             ProtobufField {

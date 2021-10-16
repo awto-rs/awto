@@ -13,15 +13,13 @@ use crate::{
 pub struct DeriveProtobufModel {
     fields: Vec<Field<ItemAttrs>>,
     ident: syn::Ident,
-    vis: syn::Visibility,
 }
 
 impl DeriveProtobufModel {
     fn expand_impl_protobuf_schema(&self) -> syn::Result<TokenStream> {
-        let Self { fields, ident, vis } = self;
+        let Self { fields, ident } = self;
 
-        let protobuf_schema_ident = format_ident!("{}ProtobufSchema", ident);
-        let message_name = ident.to_string();
+        let name = ident.to_string();
 
         let fields = fields
             .iter()
@@ -53,39 +51,29 @@ impl DeriveProtobufModel {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(quote!(
-            #[derive(Clone, Copy, Default)]
-            #vis struct #protobuf_schema_ident;
+        let expanded_impl_from_protobuf_schema_generated_string =
+            self.expand_impl_from_protobuf_schema_generated()?;
+        let generated_code = if expanded_impl_from_protobuf_schema_generated_string.is_empty() {
+            quote!(None)
+        } else {
+            let generated_string = expanded_impl_from_protobuf_schema_generated_string
+                .to_string()
+                .split("__schema_module_path__")
+                .collect::<Vec<_>>()
+                .join("\"###, module_path!(), r###\"");
+            let generated_string_expanded: TokenStream =
+                format!("r###\"{}\"###", generated_string).parse().unwrap();
+            quote!(Some(concat!(#generated_string_expanded).to_string()))
+        };
 
+        Ok(quote!(
             impl awto_schema::protobuf::IntoProtobufSchema for #ident {
-                type Schema = #protobuf_schema_ident;
-            }
-
-            impl awto_schema::protobuf::ProtobufSchema for #protobuf_schema_ident {
-                fn message_name(&self) -> &'static str {
-                    #message_name
-                }
-
-                fn fields(&self) -> ::std::vec::Vec<awto_schema::protobuf::ProtobufField> {
-                    vec![
-                        #( #fields, )*
-                    ]
-                }
-            }
-        ))
-    }
-
-    fn expand_impl_protobuf_generated_code(&self) -> syn::Result<TokenStream> {
-        let protobuf_schema_ident = format_ident!("{}ProtobufSchema", self.ident);
-
-        let expanded_impl_from_protobuf_schema_generated_string = self
-            .expand_impl_from_protobuf_schema_generated()?
-            .to_string();
-
-        Ok(quote!(
-            impl awto_schema::protobuf::ProtobufGeneratedCode for #protobuf_schema_ident {
-                fn code(&self) -> &'static str {
-                    #expanded_impl_from_protobuf_schema_generated_string
+                fn protobuf_schema() -> awto_schema::protobuf::ProtobufSchema {
+                    awto_schema::protobuf::ProtobufSchema {
+                        name: #name.to_string(),
+                        fields: vec![ #( #fields, )* ],
+                        generated_code: #generated_code,
+                    }
                 }
             }
         ))
@@ -94,7 +82,7 @@ impl DeriveProtobufModel {
     fn expand_impl_from_protobuf_schema_generated(&self) -> syn::Result<TokenStream> {
         let Self { fields, ident, .. } = self;
 
-        let schema_path = quote!(app::schema);
+        let schema_path = quote!(__schema_module_path__);
 
         let mut from_rust_fields = Vec::new();
         let mut from_proto_fields = Vec::new();
@@ -244,8 +232,8 @@ impl DeriveProtobufModel {
                         quote!(Repeated(::std::boxed::Box::new(awto_schema::protobuf::ProtobufType::#inner_ty)))
                     })?
                 } else {
-                    let ty_parsed = format_ident!("{}ProtobufSchema", ty_str);
-                    quote!(Custom(::std::boxed::Box::new(#ty_parsed)))
+                    let ty_parsed = format_ident!("{}", ty_str);
+                    quote!(Custom(<#ty_parsed as awto_schema::protobuf::IntoProtobufSchema>::protobuf_schema()))
                 }
             }
         };
@@ -259,18 +247,13 @@ impl DeriveMacro for DeriveProtobufModel {
         let fields = parse_struct_fields::<ItemAttrs>(input.data)?;
 
         let ident = input.ident;
-        let vis = input.vis;
 
-        Ok(DeriveProtobufModel { fields, ident, vis })
+        Ok(DeriveProtobufModel { fields, ident })
     }
 
     fn expand(&self) -> syn::Result<TokenStream> {
         let expanded_impl_protobuf_schema = self.expand_impl_protobuf_schema()?;
-        let expanded_impl_protobuf_generated_code = self.expand_impl_protobuf_generated_code()?;
 
-        Ok(TokenStream::from_iter([
-            expanded_impl_protobuf_schema,
-            expanded_impl_protobuf_generated_code,
-        ]))
+        Ok(TokenStream::from_iter([expanded_impl_protobuf_schema]))
     }
 }

@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-awto = { path = "../awto" }
 awto-schema = { path = "../awto-schema" }
 chrono = "0.4"
 sqlx = { version = "0.5", features = ["postgres", "runtime-tokio-rustls"] }
@@ -12,6 +11,7 @@ thiserror = "1.0"
 tokio = { version = "1.12", features = [
   "fs",
 ], default-features = false, optional = true }
+tokio-stream = "0.1"
 tonic = "0.5"
 tonic-build = "0.5"
 uuid = { version = "0.8", features = ["v4"] }

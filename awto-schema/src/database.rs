@@ -1,6 +1,6 @@
 use std::{fmt, str};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DatabaseType {
     SmallInt,
     Integer,
@@ -74,13 +74,40 @@ impl fmt::Display for DatabaseType {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialOrd)]
 pub enum DatabaseDefault {
     Bool(bool),
     Float(i64),
     Int(u64),
     Raw(String),
     String(String),
+}
+
+impl PartialEq for DatabaseDefault {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            DatabaseDefault::Bool(v) => match other {
+                DatabaseDefault::Bool(other) => v == other,
+                _ => false,
+            },
+            DatabaseDefault::Float(v) => match other {
+                DatabaseDefault::Float(other) => v == other,
+                _ => false,
+            },
+            DatabaseDefault::Int(v) => match other {
+                DatabaseDefault::Int(other) => v == other,
+                _ => false,
+            },
+            DatabaseDefault::Raw(v) => match other {
+                DatabaseDefault::Raw(other) => v.to_lowercase() == other.to_lowercase(),
+                _ => false,
+            },
+            DatabaseDefault::String(v) => match other {
+                DatabaseDefault::String(other) => v == other,
+                _ => false,
+            },
+        }
+    }
 }
 
 impl fmt::Display for DatabaseDefault {
@@ -95,49 +122,7 @@ impl fmt::Display for DatabaseDefault {
     }
 }
 
-impl PartialEq for DatabaseDefault {
-    fn eq(&self, other: &Self) -> bool {
-        match self {
-            DatabaseDefault::Bool(val) => {
-                if let DatabaseDefault::Bool(other_val) = other {
-                    val == other_val
-                } else {
-                    false
-                }
-            }
-            DatabaseDefault::Float(val) => {
-                if let DatabaseDefault::Float(other_val) = other {
-                    val == other_val
-                } else {
-                    false
-                }
-            }
-            DatabaseDefault::Int(val) => {
-                if let DatabaseDefault::Int(other_val) = other {
-                    val == other_val
-                } else {
-                    false
-                }
-            }
-            DatabaseDefault::Raw(val) => {
-                if let DatabaseDefault::Raw(other_val) = other {
-                    val.to_lowercase() == other_val.to_lowercase()
-                } else {
-                    false
-                }
-            }
-            DatabaseDefault::String(val) => {
-                if let DatabaseDefault::String(other_val) = other {
-                    val == other_val
-                } else {
-                    false
-                }
-            }
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct DatabaseColumn {
     pub name: String,
     pub ty: DatabaseType,
@@ -150,17 +135,12 @@ pub struct DatabaseColumn {
 }
 
 pub trait IntoDatabaseSchema {
-    type Schema: DatabaseSchema + Default;
-
-    fn database_schema() -> Self::Schema {
-        Self::Schema::default()
-    }
+    fn database_schema() -> DatabaseSchema;
 }
 
-pub trait DatabaseSchema {
-    fn table_name(&self) -> &'static str;
-
-    fn columns(&self) -> Vec<DatabaseColumn>;
+pub struct DatabaseSchema {
+    pub table_name: String,
+    pub columns: Vec<DatabaseColumn>,
 }
 
 #[cfg(test)]
@@ -186,12 +166,12 @@ mod test {
 
     #[test]
     fn table_name() {
-        assert_eq!(Product::database_schema().table_name(), "product");
+        assert_eq!(Product::database_schema().table_name, "product");
     }
 
     #[test]
     fn columns() {
-        let columns = Product::database_schema().columns();
+        let columns = Product::database_schema().columns;
         let expected = vec![
             DatabaseColumn {
                 name: "id".to_string(),

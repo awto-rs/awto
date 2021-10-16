@@ -5,4 +5,3 @@ edition = "2018"
 
 [dependencies]
 awto-schema = { path = "../awto-schema" }
-paste = "1.0"

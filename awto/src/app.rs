@@ -1,40 +1,22 @@
-use awto_schema::{
-    database::DatabaseSchema,
-    protobuf::{ProtobufSchema, ProtobufService},
-};
+use crate::{schema::Schema, service::Service};
 
 pub trait AwtoApp {
-    fn app_name() -> &'static str;
+    type Schema: Schema;
+    type Service: Service;
+
+    const APP_NAME: &'static str;
 
     fn app_config() -> AppConfig {
         AppConfig::default()
     }
-
-    fn database_schemas() -> &'static [&'static dyn DatabaseSchema] {
-        &[]
-    }
-
-    fn protobuf_schemas() -> &'static [&'static dyn ProtobufSchema] {
-        &[]
-    }
-
-    fn protobuf_services() -> &'static [&'static dyn ProtobufService] {
-        &[]
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct AppConfig {
-    pub compile_database: bool,
-    pub compile_protobuf: bool,
-}
+pub struct AppConfig {}
 
 impl Default for AppConfig {
     fn default() -> Self {
-        Self {
-            compile_database: true,
-            compile_protobuf: true,
-        }
+        Self {}
     }
 }
 
@@ -47,47 +29,31 @@ macro_rules! app_name {
 
 #[macro_export]
 macro_rules! database_schemas {
-    ($( $i: ident ),*) => {
-        ::awto::database_schemas!(schema: $( $i ),*)
+    ($( $name: ident ),*) => {
+        ::awto::database_schemas!(schema: $( $name ),*)
     };
-    ($module: ident : $( $i: ident ),*) => {
-        &[
-            $(
-                ::awto::__paste! {
-                    &crate::$module::[<$i DatabaseSchema>]
-                }
-            ),*
-        ]
+    ($module: ident : $( $name: ident ),*) => {
+        vec![ $( <crate::$module::$name as ::awto_schema::database::IntoDatabaseSchema>::database_schema() ),* ]
     };
 }
 
 #[macro_export]
 macro_rules! protobuf_schemas {
-    ($( $i: ident ),*) => {
-        ::awto::protobuf_schemas!(schema: $( $i ),*)
+    ($( $name: ident ),*) => {
+        ::awto::protobuf_schemas!(schema: $( $name ),*)
     };
-    ($module: ident : $( $i: ident ),*) => {
-        &[
-            $(
-                ::awto::__paste! {
-                    &crate::$module::[<$i ProtobufSchema>]
-                }
-            ),*
-        ]
+    ($module: ident : $( $name: ident ),*) => {
+        vec![ $( <crate::$module::$name as ::awto_schema::protobuf::IntoProtobufSchema>::protobuf_schema() ),* ]
     };
 }
 
 #[macro_export]
 macro_rules! protobuf_services {
-    ($( $i: ident ),*) => {
-        ::awto::protobuf_services!(service: $( $i ),*)
+    ($( $name: ident ),*) => {
+        ::awto::protobuf_services!(service: $( $name ),*)
     };
-    ($module: ident : $( $i: ident ),*) => {
-        &[
-            $(
-                &crate::$module::$i
-            ),*
-        ]
+    ($module: ident : $( $name: ident ),*) => {
+        vec![ $( <crate::$module::$name as ::awto_schema::protobuf::IntoProtobufService>::protobuf_service() ),* ]
     };
 }
 
@@ -114,15 +80,15 @@ macro_rules! app {
                 $app_config
             }
 
-            fn database_schemas() -> &'static [&'static dyn ::awto_schema::database::DatabaseSchema] {
+            fn database_schemas() -> Vec<::awto_schema::database::DatabaseSchema> {
                 ::awto::database_schemas!($( $schemas ),*)
             }
 
-            fn protobuf_schemas() -> &'static [&'static dyn ::awto_schema::protobuf::ProtobufSchema] {
+            fn protobuf_schemas() -> Vec<::awto_schema::protobuf::ProtobufSchema> {
                 ::awto::protobuf_schemas!($( $schemas ),*)
             }
 
-            fn protobuf_services() -> &'static [&'static dyn ::awto_schema::protobuf::ProtobufService] {
+            fn protobuf_services() -> Vec<::awto_schema::protobuf::ProtobufService> {
                 ::awto::protobuf_services!($( $services ),*)
             }
         }

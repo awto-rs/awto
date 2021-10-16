@@ -1,4 +1,4 @@
-use awto_schema::*;
+use awto_schema::prelude::*;
 use chrono::{DateTime, FixedOffset, Local};
 use tonic::Status;
 use uuid::Uuid;
@@ -56,5 +56,25 @@ impl ProductService {
         } else {
             Err(Status::not_found("resouce not found"))
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use awto_schema::database::IntoDatabaseSchema;
+
+    use super::*;
+
+    #[test]
+    fn variant() {
+        assert_eq!(
+            Variant::database_schema()
+                .columns
+                .iter()
+                .find(|col| col.name == "product_id")
+                .unwrap()
+                .references,
+            Some(("product".to_string(), "id".to_string()))
+        );
     }
 }

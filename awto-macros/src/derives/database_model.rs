@@ -2,7 +2,7 @@ use std::iter::FromIterator;
 
 use heck::SnakeCase;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
 use crate::{
@@ -14,16 +14,12 @@ use crate::{
 pub struct DeriveDatabaseModel {
     fields: Vec<Field<ItemAttrs>>,
     ident: syn::Ident,
-    vis: syn::Visibility,
 }
 
 impl DeriveDatabaseModel {
     fn expand_impl_database_schema(&self) -> syn::Result<TokenStream> {
-        let Self {
-            fields, ident, vis, ..
-        } = self;
+        let Self { fields, ident, .. } = self;
 
-        let database_schema_ident = format_ident!("{}DatabaseSchema", ident);
         let table_name = ident.to_string().to_snake_case();
 
         macro_rules! check_field_exists {
@@ -178,11 +174,10 @@ impl DeriveDatabaseModel {
                     let references_column = references.1.value();
 
                     quote!({
-                        if !awto_schema::database::DatabaseSchema::columns(
-                            &<#references_table as awto_schema::database::IntoDatabaseSchema>::database_schema(),
-                        )
-                        .iter()
-                        .any(|column| column.name == #references_column)
+                        if !<#references_table as awto_schema::database::IntoDatabaseSchema>::database_schema()
+                            .columns
+                            .iter()
+                            .any(|column| column.name == #references_column)
                         {
                             panic!(concat!(
                                 "[error] ",
@@ -195,10 +190,8 @@ impl DeriveDatabaseModel {
                         }
 
                         Some((
-                            awto_schema::database::DatabaseSchema::table_name(
-                                &<#references_table as awto_schema::database::IntoDatabaseSchema>::database_schema(),
-                            )
-                            .to_string(),
+                            <#references_table as awto_schema::database::IntoDatabaseSchema>::database_schema()
+                                .table_name,
                             #references_column.to_string(),
                         ))
                     })
@@ -224,22 +217,12 @@ impl DeriveDatabaseModel {
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(quote!(
-            #[derive(Clone, Copy, Default)]
-            #vis struct #database_schema_ident;
-
             impl awto_schema::database::IntoDatabaseSchema for #ident {
-                type Schema = #database_schema_ident;
-            }
-
-            impl awto_schema::database::DatabaseSchema for #database_schema_ident {
-                fn table_name(&self) -> &'static str {
-                    #table_name
-                }
-
-                fn columns(&self) -> ::std::vec::Vec<awto_schema::database::DatabaseColumn> {
-                    vec![
-                        #( #columns, )*
-                    ]
+                fn database_schema() -> awto_schema::database::DatabaseSchema {
+                    awto_schema::database::DatabaseSchema {
+                        table_name: #table_name.to_string(),
+                        columns: vec![ #( #columns, )* ],
+                    }
                 }
             }
         ))
@@ -327,9 +310,8 @@ impl DeriveMacro for DeriveDatabaseModel {
         let fields = parse_struct_fields::<ItemAttrs>(input.data)?;
 
         let ident = input.ident;
-        let vis = input.vis;
 
-        Ok(DeriveDatabaseModel { fields, ident, vis })
+        Ok(DeriveDatabaseModel { fields, ident })
     }
 
     fn expand(&self) -> syn::Result<TokenStream> {
