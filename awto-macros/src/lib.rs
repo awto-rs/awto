@@ -1,3 +1,18 @@
+//! <div align="center">
+//!   <h1>awto</h1>
+//!
+//!   <p>
+//!     <strong>Awtomate your 🦀 microservices with awto</strong>
+//!   </p>
+//!
+//! </div>
+//!
+//! # awto-macros
+//!
+//! This crate provides macros used by [`awto`](https://docs.rs/awto).
+//!
+//! See more on the [repository](https://github.com/awto-rs/awto).
+
 mod attributes;
 mod derives;
 mod error;
