@@ -4,11 +4,13 @@ use std::path::Path;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use clap::{AppSettings, Clap};
-use colored::Colorize;
 use log::info;
 use tokio::fs;
 
-use crate::{util::CargoFile, Runnable};
+use crate::{
+    util::{add_package_to_workspace, CargoFile},
+    Runnable,
+};
 
 use super::{build_awto_pkg, prepare_awto_dir};
 
@@ -47,48 +49,10 @@ impl Runnable for Protobuf {
         prepare_awto_dir().await?;
 
         Self::prepare_protobuf_dir().await?;
+        add_package_to_workspace("awto/protobuf").await?;
         build_awto_pkg("protobuf").await?;
 
-        let show_extended_message = CargoFile::load("./Cargo.toml")
-            .await
-            .map(|cargo_file| {
-                cargo_file
-                    .workspace
-                    .map(|workspace| workspace.members)
-                    .map(|members| members.contains(&"awto/protobuf".to_string()))
-                    .unwrap_or(false)
-            })
-            .unwrap_or(false);
-        if show_extended_message {
-            info!("compiled package 'protobuf'");
-        } else {
-            info!(
-                "compiled package 'protobuf'{}",
-                format!(
-                    r#"
-
-- add it to your workspace Cargo.toml
-  {}
-
-- import it in a package
-  {}
-
-{}
-"#,
-                    format!(
-                        r#"{}{}{}"#,
-                        "members = [".italic().truecolor(100, 100, 100),
-                        r#""awto/protobuf""#.white(),
-                        r#", "schema", "service"]"#.italic().truecolor(100, 100, 100)
-                    ),
-                    r#"protobuf = { path = "../awto/protobuf" }"#.white(),
-                    r#"add "awto/protobuf" to your workspace to hide this message"#
-                        .italic()
-                        .truecolor(100, 100, 100)
-                )
-                .truecolor(190, 190, 190)
-            );
-        }
+        info!("compiled package 'protobuf'");
 
         Ok(())
     }
@@ -152,43 +116,4 @@ impl Protobuf {
 
         Ok(())
     }
-
-    // async fn read_services() -> Result<Vec<String>> {
-    //     let service_lib = fs::read_to_string("./service/src/lib.rs")
-    //         .await
-    //         .context("could not read file './service/src/lib.rs'")?;
-    //     let lib = syn::parse_file(&service_lib).context("could not parse service source code")?;
-    //     lib.items
-    //         .into_iter()
-    //         .find_map(|item| {
-    //             if let syn::Item::Macro(syn::ItemMacro { mac, .. }) = item {
-    //                 let macro_name = mac
-    //                     .path
-    //                     .segments
-    //                     .iter()
-    //                     .map(|segment| segment.ident.to_string())
-    //                     .collect::<Vec<_>>()
-    //                     .join("::");
-    //                 if macro_name != "awto::register_services" && macro_name != "register_services" {
-    //                     return None;
-    //                 }
-
-    //                 let services: Vec<_> = mac
-    //                     .tokens
-    //                     .into_iter()
-    //                     .filter_map(|token| match token {
-    //                         TokenTree::Ident(ident) => Some(ident.to_string()),
-    //                         _ => None,
-    //                     })
-    //                     .collect();
-
-    //                 Some(services)
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .ok_or_else(|| {
-    //             anyhow!("no services registered with the 'awto::register_services!' macro\n\n   Services must be registered:\n      `awto::register_services!(ServiceOne, ServiceTwo)`")
-    //         })
-    // }
 }

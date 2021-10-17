@@ -4,13 +4,16 @@ use std::path::Path;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use clap::{AppSettings, Clap};
-use colored::Colorize;
 use heck::SnakeCase;
 use log::info;
 use proc_macro2::TokenTree;
 use tokio::fs;
 
-use crate::{compile::build_awto_pkg, util::CargoFile, Runnable};
+use crate::{
+    compile::build_awto_pkg,
+    util::{add_package_to_workspace, CargoFile},
+    Runnable,
+};
 
 use super::prepare_awto_dir;
 
@@ -49,48 +52,10 @@ impl Runnable for Database {
         prepare_awto_dir().await?;
 
         Self::prepare_database_dir().await?;
+        add_package_to_workspace("awto/database").await?;
         build_awto_pkg("database").await?;
 
-        let show_extended_message = CargoFile::load("./Cargo.toml")
-            .await
-            .map(|cargo_file| {
-                cargo_file
-                    .workspace
-                    .map(|workspace| workspace.members)
-                    .map(|members| members.contains(&"awto/database".to_string()))
-                    .unwrap_or(false)
-            })
-            .unwrap_or(false);
-        if show_extended_message {
-            info!("compiled package 'database'");
-        } else {
-            info!(
-                "compiled package 'database'{}",
-                format!(
-                    r#"
-
- - add it to your workspace Cargo.toml
-      {}
-
- - import it in a package
-      {}
-
-{}
-"#,
-                    format!(
-                        r#"{}{}{}"#,
-                        "members = [".italic().truecolor(100, 100, 100),
-                        r#""awto/database""#.white(),
-                        r#", "schema", "service"]"#.italic().truecolor(100, 100, 100)
-                    ),
-                    r#"database = { path = "../awto/database" }"#.white(),
-                    r#"add "awto/database" to your workspace to hide this message"#
-                        .italic()
-                        .truecolor(100, 100, 100)
-                )
-                .truecolor(190, 190, 190)
-            );
-        }
+        info!("compiled package 'database'");
 
         Ok(())
     }
