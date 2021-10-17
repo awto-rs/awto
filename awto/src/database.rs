@@ -150,7 +150,7 @@ mod test {
     use uuid::Uuid;
 
     use super::*;
-    use crate as awto_schema;
+    use crate as awto;
     use crate::prelude::*;
 
     #[derive(Model)]

@@ -1,6 +1,6 @@
 use std::{borrow::Cow, env, fmt::Write};
 
-use awto_schema::database::{DatabaseColumn, DatabaseDefault, DatabaseSchema, DatabaseType};
+use awto::database::{DatabaseColumn, DatabaseDefault, DatabaseSchema, DatabaseType};
 use sqlx::{Executor, PgPool};
 use tokio_stream::StreamExt;
 

@@ -1,6 +1,6 @@
 use std::{env, fmt::Write};
 
-use awto_schema::protobuf::{ProtobufField, ProtobufMethod, ProtobufSchema, ProtobufService};
+use awto::protobuf::{ProtobufField, ProtobufMethod, ProtobufSchema, ProtobufService};
 
 const COMPILED_PROTO_FILE: &str = "app.proto";
 const COMPILED_RUST_FILE: &str = "app.rs";
@@ -77,7 +77,7 @@ pub fn compile_protobuf(
 /// ```
 /// # use awto_compile::protobuf::ProtobufCompiler;
 /// # use awto_compile::tests_cfg::*;
-/// # use awto_schema::protobuf::{IntoProtobufSchema, IntoProtobufService};
+/// # use awto::protobuf::{IntoProtobufSchema, IntoProtobufService};
 /// let compiler = ProtobufCompiler::new(
 ///     vec![Product::protobuf_schema(), Variant::protobuf_schema()],
 ///     vec![ProductService::protobuf_service()],

@@ -74,7 +74,7 @@ impl DeriveDatabaseModel {
 
                 let mut ty = if let Some(db_type) = &field.attrs.db_type {
                     if let Ok(db_type) = db_type.value().parse::<TokenStream>() {
-                        quote!(awto_schema::database::DatabaseType::#db_type)
+                        quote!(awto::database::DatabaseType::#db_type)
                     } else {
                         return Err(syn::Error::new(db_type.span(), "invalid db_type"));
                     }
@@ -126,7 +126,7 @@ impl DeriveDatabaseModel {
                 let mut default = if let Some(default_raw) = &field.attrs.default_raw {
                     verify_id_created_at_updated_at_custom_default()?;
 
-                    quote!(Some(awto_schema::database::DatabaseDefault::Raw(#default_raw.to_string())))
+                    quote!(Some(awto::database::DatabaseDefault::Raw(#default_raw.to_string())))
                 } else if let Some(default) = &field.attrs.default {
                     verify_id_created_at_updated_at_custom_default()?;
 
@@ -142,9 +142,9 @@ impl DeriveDatabaseModel {
                     quote!(None)
                 };
                 if name == "id" {
-                    default = quote!(Some(awto_schema::database::DatabaseDefault::Raw("uuid_generate_v4()".to_string())))
+                    default = quote!(Some(awto::database::DatabaseDefault::Raw("uuid_generate_v4()".to_string())))
                 } else if name == "created_at" || name == "updated_at" {
-                    default = quote!(Some(awto_schema::database::DatabaseDefault::Raw("NOW()".to_string())))
+                    default = quote!(Some(awto::database::DatabaseDefault::Raw("NOW()".to_string())))
                 }
 
                 let unique = field.attrs.unique.is_some();
@@ -174,7 +174,7 @@ impl DeriveDatabaseModel {
                     let references_column = references.1.value();
 
                     quote!({
-                        if !<#references_table as awto_schema::database::IntoDatabaseSchema>::database_schema()
+                        if !<#references_table as awto::database::IntoDatabaseSchema>::database_schema()
                             .columns
                             .iter()
                             .any(|column| column.name == #references_column)
@@ -190,7 +190,7 @@ impl DeriveDatabaseModel {
                         }
 
                         Some((
-                            <#references_table as awto_schema::database::IntoDatabaseSchema>::database_schema()
+                            <#references_table as awto::database::IntoDatabaseSchema>::database_schema()
                                 .table_name,
                             #references_column.to_string(),
                         ))
@@ -202,7 +202,7 @@ impl DeriveDatabaseModel {
                 let primary_key = name == "id";
 
                 Ok(quote!(
-                    awto_schema::database::DatabaseColumn {
+                    awto::database::DatabaseColumn {
                         name: #name.to_string(),
                         ty: #ty,
                         nullable: #nullable,
@@ -232,9 +232,9 @@ impl DeriveDatabaseModel {
         };
 
         Ok(quote!(
-            impl awto_schema::database::IntoDatabaseSchema for #ident {
-                fn database_schema() -> awto_schema::database::DatabaseSchema {
-                    awto_schema::database::DatabaseSchema {
+            impl awto::database::IntoDatabaseSchema for #ident {
+                fn database_schema() -> awto::database::DatabaseSchema {
+                    awto::database::DatabaseSchema {
                         table_name: #table_name.to_string(),
                         columns: vec![ #( #columns, )* ],
                         generated_code: #generated_code,
@@ -324,11 +324,11 @@ impl DeriveDatabaseModel {
 
     fn lit_to_db_default(lit: &syn::Lit) -> Option<TokenStream> {
         let db_default = match lit {
-            syn::Lit::Bool(b) => quote!(awto_schema::database::DatabaseDefault::Bool(#b)),
-            syn::Lit::Float(f) => quote!(awto_schema::database::DatabaseDefault::Float(#f)),
-            syn::Lit::Int(i) => quote!(awto_schema::database::DatabaseDefault::Int(#i)),
+            syn::Lit::Bool(b) => quote!(awto::database::DatabaseDefault::Bool(#b)),
+            syn::Lit::Float(f) => quote!(awto::database::DatabaseDefault::Float(#f)),
+            syn::Lit::Int(i) => quote!(awto::database::DatabaseDefault::Int(#i)),
             syn::Lit::Str(s) => {
-                quote!(awto_schema::database::DatabaseDefault::String(#s.to_string()))
+                quote!(awto::database::DatabaseDefault::String(#s.to_string()))
             }
             _ => return None,
         };
@@ -383,7 +383,7 @@ impl DeriveDatabaseModel {
             _ => return None,
         };
 
-        Some(quote!(awto_schema::database::DatabaseType::#db_type))
+        Some(quote!(awto::database::DatabaseType::#db_type))
     }
 }
 

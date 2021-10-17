@@ -27,7 +27,7 @@ impl DeriveProtobufModel {
                 let name = field.field.ident.as_ref().unwrap().to_string();
                 let ty = if let Some(proto_type) = &field.attrs.proto_type {
                     if let Ok(proto_type) = proto_type.value().parse::<TokenStream>() {
-                        quote!(awto_schema::database::DatabaseType::#proto_type)
+                        quote!(awto::database::DatabaseType::#proto_type)
                     } else {
                         return Err(syn::Error::new(proto_type.span(), "invalid proto_type"));
                     }
@@ -42,7 +42,7 @@ impl DeriveProtobufModel {
                 let required = !Self::is_type_option(&field.field.ty);
 
                 Ok(quote!(
-                    awto_schema::protobuf::ProtobufField {
+                    awto::protobuf::ProtobufField {
                         name: #name.to_string(),
                         ty: #ty,
                         required: #required,
@@ -67,9 +67,9 @@ impl DeriveProtobufModel {
         };
 
         Ok(quote!(
-            impl awto_schema::protobuf::IntoProtobufSchema for #ident {
-                fn protobuf_schema() -> awto_schema::protobuf::ProtobufSchema {
-                    awto_schema::protobuf::ProtobufSchema {
+            impl awto::protobuf::IntoProtobufSchema for #ident {
+                fn protobuf_schema() -> awto::protobuf::ProtobufSchema {
+                    awto::protobuf::ProtobufSchema {
                         name: #name.to_string(),
                         fields: vec![ #( #fields, )* ],
                         generated_code: #generated_code,
@@ -208,7 +208,7 @@ impl DeriveProtobufModel {
         };
 
         Self::rust_str_to_proto_type(ty_str)
-            .map(|protobuf_type| quote!(awto_schema::protobuf::ProtobufType::#protobuf_type))
+            .map(|protobuf_type| quote!(awto::protobuf::ProtobufType::#protobuf_type))
     }
 
     fn rust_str_to_proto_type(ty_str: &str) -> Option<TokenStream> {
@@ -234,11 +234,11 @@ impl DeriveProtobufModel {
             _ => {
                 if ty_str.starts_with("Vec<") {
                     Self::rust_str_to_proto_type(&ty_str[4..(ty_str.len() - 1)]).map(|inner_ty| {
-                        quote!(Repeated(::std::boxed::Box::new(awto_schema::protobuf::ProtobufType::#inner_ty)))
+                        quote!(Repeated(::std::boxed::Box::new(awto::protobuf::ProtobufType::#inner_ty)))
                     })?
                 } else {
                     let ty_parsed = format_ident!("{}", ty_str);
-                    quote!(Custom(<#ty_parsed as awto_schema::protobuf::IntoProtobufSchema>::protobuf_schema()))
+                    quote!(Custom(<#ty_parsed as awto::protobuf::IntoProtobufSchema>::protobuf_schema()))
                 }
             }
         };

@@ -1,4 +1,5 @@
-use awto_schema::{prelude::DatabaseSchema, protobuf::ProtobufSchema};
+use crate::database::DatabaseSchema;
+use crate::protobuf::ProtobufSchema;
 
 pub trait Schema {
     fn database_schemas() -> Vec<DatabaseSchema> {
@@ -16,12 +17,12 @@ macro_rules! register_schemas {
         pub struct Schema;
 
         impl ::awto::schema::Schema for Schema {
-            fn database_schemas() -> Vec<::awto_schema::database::DatabaseSchema> {
-                vec![ $( <$name as ::awto_schema::database::IntoDatabaseSchema>::database_schema(), )* ]
+            fn database_schemas() -> Vec<::awto::database::DatabaseSchema> {
+                vec![ $( <$name as ::awto::database::IntoDatabaseSchema>::database_schema(), )* ]
             }
 
-            fn protobuf_schemas() -> Vec<::awto_schema::protobuf::ProtobufSchema> {
-                vec![ $( <$name as ::awto_schema::protobuf::IntoProtobufSchema>::protobuf_schema(), )* ]
+            fn protobuf_schemas() -> Vec<::awto::protobuf::ProtobufSchema> {
+                vec![ $( <$name as ::awto::protobuf::IntoProtobufSchema>::protobuf_schema(), )* ]
             }
         }
     };

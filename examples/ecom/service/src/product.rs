@@ -1,4 +1,4 @@
-use awto_schema::macros::protobuf_service;
+use awto::macros::protobuf_service;
 use database::{
     product,
     sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveValue},
@@ -57,7 +57,7 @@ impl ProductService {
 #[cfg(test)]
 mod test {
     use super::*;
-    use awto_schema::protobuf::IntoProtobufService;
+    use awto::protobuf::IntoProtobufService;
 
     #[test]
     fn service_name() {

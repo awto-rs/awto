@@ -47,7 +47,7 @@ impl ProtobufService {
                     validators.push(quote_spanned!(
                             param.span()=>
                                 #[allow(non_camel_case_types)]
-                                trait #param_type_validator_ident: awto_schema::protobuf::IntoProtobufSchema {}
+                                trait #param_type_validator_ident: awto::protobuf::IntoProtobufSchema {}
                                 impl #param_type_validator_ident for #param {}
                         ));
 
@@ -57,15 +57,15 @@ impl ProtobufService {
                     validators.push(quote_spanned!(
                         returns.span()=>
                             #[allow(non_camel_case_types)]
-                            trait #return_type_validator_ident: awto_schema::protobuf::IntoProtobufSchema {}
+                            trait #return_type_validator_ident: awto::protobuf::IntoProtobufSchema {}
                             impl #return_type_validator_ident for #returns {}
                     ));
 
                     methods.push(quote!(
-                        awto_schema::protobuf::ProtobufMethod {
+                        awto::protobuf::ProtobufMethod {
                             name: #name.to_string(),
-                            param: <#param as awto_schema::protobuf::IntoProtobufSchema>::protobuf_schema(),
-                            returns: <#returns as awto_schema::protobuf::IntoProtobufSchema>::protobuf_schema(),
+                            param: <#param as awto::protobuf::IntoProtobufSchema>::protobuf_schema(),
+                            returns: <#returns as awto::protobuf::IntoProtobufSchema>::protobuf_schema(),
                         }
                     ))
                 }
@@ -89,9 +89,9 @@ impl ProtobufService {
         };
 
         Ok(quote!(
-            impl awto_schema::protobuf::IntoProtobufService for #ident {
-                fn protobuf_service() -> awto_schema::protobuf::ProtobufService {
-                    awto_schema::protobuf::ProtobufService {
+            impl awto::protobuf::IntoProtobufService for #ident {
+                fn protobuf_service() -> awto::protobuf::ProtobufService {
+                    awto::protobuf::ProtobufService {
                         name: #name.to_string(),
                         methods: vec![ #( #methods, )* ],
                         generated_code: #generated_code,

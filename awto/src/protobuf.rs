@@ -121,14 +121,14 @@ pub struct ProtobufService {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate as awto_schema;
+    use crate as awto;
     use crate::prelude::*;
 
     #[derive(ProtobufModel)]
     pub struct Product {
         pub name: String,
         #[awto(default = 0)]
-        pub price: u64,
+        pub price: i64,
         #[awto(max_len = 256)]
         pub description: Option<String>,
         pub comments: Vec<String>,
@@ -151,7 +151,7 @@ mod test {
             },
             ProtobufField {
                 name: "price".to_string(),
-                ty: ProtobufType::Uint64,
+                ty: ProtobufType::Int64,
                 required: true,
             },
             ProtobufField {

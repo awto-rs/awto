@@ -5,7 +5,6 @@ edition = "2018"
 
 [dependencies]
 awto = { path = "../../../awto" }
-awto-schema = { path = "../../../awto-schema" }
 chrono = "0.4"
 database = { path = "../awto/database" }
 schema = { path = "../schema" }

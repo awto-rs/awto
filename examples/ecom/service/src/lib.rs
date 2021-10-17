@@ -1,5 +1,7 @@
+use awto::prelude::*;
+
 use crate::product::ProductService;
 
 pub mod product;
 
-awto::register_services!(ProductService);
+register_services!(ProductService);

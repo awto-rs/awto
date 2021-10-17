@@ -1,4 +1,4 @@
-use awto_schema::protobuf::ProtobufService;
+use crate::protobuf::ProtobufService;
 
 pub trait Service {
     fn protobuf_services() -> Vec<ProtobufService> {
@@ -12,8 +12,8 @@ macro_rules! register_services {
         pub struct Service;
 
         impl ::awto::service::Service for Service {
-            fn protobuf_services() -> Vec<::awto_schema::protobuf::ProtobufService> {
-                vec![ $( <$name as ::awto_schema::protobuf::IntoProtobufService>::protobuf_service(), )* ]
+            fn protobuf_services() -> Vec<::awto::protobuf::ProtobufService> {
+                vec![ $( <$name as ::awto::protobuf::IntoProtobufService>::protobuf_service(), )* ]
             }
         }
     };

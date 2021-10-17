@@ -1,4 +1,4 @@
-use awto_schema::prelude::*;
+use awto::prelude::*;
 use chrono::{DateTime, FixedOffset, Local};
 use tonic::Status;
 use uuid::Uuid;
@@ -61,7 +61,7 @@ impl ProductService {
 
 #[cfg(test)]
 mod test {
-    use awto_schema::database::IntoDatabaseSchema;
+    use awto::database::IntoDatabaseSchema;
 
     use super::*;
 

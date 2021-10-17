@@ -1,8 +1,8 @@
-use awto_schema::prelude::*;
+use awto::prelude::*;
 use chrono::{DateTime, FixedOffset};
 use uuid::Uuid;
 
-awto::register_schemas!(Product);
+register_schemas!(Product);
 
 #[derive(Model)]
 pub struct Product {
