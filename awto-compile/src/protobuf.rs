@@ -95,7 +95,7 @@ pub fn compile_protobuf(
 ///   google.protobuf.Timestamp created_at = 2;
 ///   google.protobuf.Timestamp updated_at = 3;
 ///   string name = 4;
-///   uint64 price = 5;
+///   int64 price = 5;
 ///   optional string description = 6;
 /// }
 ///
@@ -113,7 +113,7 @@ pub fn compile_protobuf(
 ///   google.protobuf.Timestamp updated_at = 3;
 ///   string product_id = 4;
 ///   string name = 5;
-///   uint64 price = 6;
+///   int64 price = 6;
 /// }
 ///
 /// service ProductService {

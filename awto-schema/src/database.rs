@@ -160,7 +160,7 @@ mod test {
         pub updated_at: DateTime<FixedOffset>,
         pub name: String,
         #[awto(default = 0)]
-        pub price: u64,
+        pub price: i64,
         #[awto(max_len = 256)]
         pub description: Option<String>,
     }
