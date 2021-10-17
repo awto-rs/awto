@@ -1,0 +1,23 @@
+[package]
+name = "database"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+schema = { path = "../../schema" }
+sea-orm = { git = "https://github.com/Acidic9/sea-orm.git", branch = "feat/sea-orm-build", package = "sea-orm", features = [
+  "sqlx-postgres",
+  "runtime-tokio-rustls",
+  "macros",
+], default-features = false }
+
+[build-dependencies]
+awto = { path = "../../../../awto" }
+awto-compile = { path = "../../../../awto-compile" }
+dotenv = "0.15"
+schema = { path = "../../schema" }
+sea-orm-build = { version = "0.2.6", git = "https://github.com/Acidic9/sea-orm.git", branch = "feat/sea-orm-build", package = "sea-orm-build", features = [
+  "postgres",
+  "runtime-tokio-rustls",
+], default-features = false }
+tokio = { version = "1.12", features = ["rt"] }

@@ -11,15 +11,26 @@ pub struct Product {
     pub updated_at: DateTime<FixedOffset>,
     pub name: String,
     #[awto(default = 0)]
-    pub price: u64,
+    pub price: i64,
     #[awto(max_len = 120)]
     pub description: Option<String>,
     pub category: Option<String>,
 }
 
 #[derive(ProtobufModel)]
+pub struct Empty {}
+
+#[derive(ProtobufModel)]
 pub struct ProductId {
-    pub id: String,
+    pub id: Uuid,
+}
+
+#[derive(ProtobufModel)]
+pub struct NewProduct {
+    pub name: String,
+    pub price: Option<i64>,
+    pub description: Option<String>,
+    pub category: Option<String>,
 }
 
 #[derive(ProtobufModel)]

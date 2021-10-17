@@ -1,42 +1,56 @@
 use awto_schema::macros::protobuf_service;
-use chrono::{FixedOffset, Local};
+use database::{
+    product,
+    sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveValue},
+};
 use schema::*;
 use tonic::Status;
-use uuid::Uuid;
 
-#[derive(Default)]
-pub struct ProductService;
+pub struct ProductService {
+    pub conn: database::sea_orm::DatabaseConnection,
+}
 
 #[protobuf_service]
 impl ProductService {
-    pub fn find_product(&self, request: ProductId) -> Result<ProductList, Status> {
-        if request.id == "1" {
-            Ok(ProductList {
-                products: vec![Product {
-                    id: Uuid::new_v4(),
-                    created_at: Local::now().with_timezone(&FixedOffset::east(0)),
-                    updated_at: Local::now().with_timezone(&FixedOffset::east(0)),
-                    name: "1".to_string(),
-                    price: 69,
-                    description: None,
-                    category: None,
-                }],
-            })
-        } else if request.id == "2" {
-            Ok(ProductList {
-                products: vec![Product {
-                    id: Uuid::new_v4(),
-                    created_at: Local::now().with_timezone(&FixedOffset::east(0)),
-                    updated_at: Local::now().with_timezone(&FixedOffset::east(0)),
-                    name: "2".to_string(),
-                    price: 420,
-                    description: None,
-                    category: None,
-                }],
-            })
-        } else {
-            Err(Status::not_found("resouce not found"))
-        }
+    pub async fn create_product(&self, request: NewProduct) -> Result<ProductId, Status> {
+        let active_model = product::ActiveModel {
+            name: request.name.into_active_value(),
+            price: request.price.unwrap_or_default().into_active_value(),
+            description: request.description.into_active_value(),
+            category: request.category.into_active_value(),
+            ..Default::default()
+        };
+
+        let result = active_model
+            .insert(&self.conn)
+            .await
+            .map_err(|err| Status::internal(err.to_string()))?;
+
+        Ok(ProductId {
+            id: result.id.unwrap(),
+        })
+    }
+
+    pub async fn find_product(&self, request: ProductId) -> Result<Product, Status> {
+        let product = product::Entity::find_by_id(request.id)
+            .one(&self.conn)
+            .await
+            .map_err(|err| Status::internal(err.to_string()))?
+            .ok_or_else(|| Status::not_found("product not found"))?;
+
+        Ok(product.into())
+    }
+
+    pub async fn list_products(&self, _request: Empty) -> Result<ProductList, Status> {
+        let products: Vec<Product> = product::Entity::find()
+            .all(&self.conn)
+            .await
+            .map_err(|err| Status::internal(err.to_string()))?
+            .into_iter()
+            .map(|product| product.into())
+            .collect();
+
+        Ok(ProductList { products })
     }
 }
 

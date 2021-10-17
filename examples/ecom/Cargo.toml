@@ -1,2 +1,9 @@
 [workspace]
-members = ["client", "database", "proto", "schema", "server", "service"]
+members = [
+  "awto/database",
+  "awto/protobuf",
+  "client",
+  "schema",
+  "server",
+  "service",
+]

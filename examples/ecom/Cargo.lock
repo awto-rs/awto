@@ -232,7 +232,7 @@ dependencies = [
 name = "client"
 version = "0.1.0"
 dependencies = [
- "proto",
+ "protobuf",
  "tokio",
  "tonic",
 ]
@@ -1156,7 +1156,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "proto"
+name = "protobuf"
 version = "0.1.0"
 dependencies = [
  "awto",
@@ -1527,7 +1527,9 @@ dependencies = [
 name = "server"
 version = "0.1.0"
 dependencies = [
- "proto",
+ "dotenv",
+ "protobuf",
+ "sea-orm",
  "service",
  "tokio",
  "tonic",

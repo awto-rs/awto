@@ -4,7 +4,13 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-proto = { path = "../proto" }
+dotenv = "0.15"
+protobuf = { path = "../awto/protobuf" }
+sea-orm = { git = "https://github.com/Acidic9/sea-orm.git", branch = "feat/sea-orm-build", package = "sea-orm", features = [
+  "sqlx-postgres",
+  "runtime-tokio-rustls",
+  "macros",
+], default-features = false }
 tokio = { version = "1.12", features = ["full"] }
 tonic = "0.5"
 service = { path = "../service" }

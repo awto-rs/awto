@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-proto = { path = "../proto" }
+protobuf = { path = "../awto/protobuf" }
 tokio = { version = "1.12", features = ["full"] }
 tonic = "0.5"
