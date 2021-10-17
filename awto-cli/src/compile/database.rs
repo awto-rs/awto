@@ -69,10 +69,15 @@ impl Database {
     const DATABASE_DIR: &'static str = "./awto/database";
     const DATABASE_SRC_DIR: &'static str = "./awto/database/src";
     const DATABASE_CARGO_PATH: &'static str = "./awto/database/Cargo.toml";
-    const DATABASE_CARGO_TOML_BYTES: &'static [u8] =
-        include_bytes!("../templates/database/Cargo.toml");
+    const DATABASE_CARGO_TOML_BYTES: &'static [u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/templates/database/Cargo.toml"
+    ));
     const DATABASE_BUILD_PATH: &'static str = "./awto/database/build.rs";
-    const DATABASE_BUILD_BYTES: &'static [u8] = include_bytes!("../templates/database/build.rs");
+    const DATABASE_BUILD_BYTES: &'static [u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/templates/database/build.rs"
+    ));
     const DATABASE_LIB_PATH: &'static str = "./awto/database/src/lib.rs";
 
     async fn prepare_database_dir() -> Result<()> {

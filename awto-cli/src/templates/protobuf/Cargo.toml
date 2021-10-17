@@ -13,7 +13,7 @@ tonic = "0.5"
 uuid = "0.8"
 
 [build-dependencies]
-awto = { path = "../../../../awto" }
-awto-compile = { path = "../../../../awto-compile" }
+awto = "0.1"
+awto-compile = "0.1"
 schema = { path = "../../schema" }
 service = { path = "../../service" }

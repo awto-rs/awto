@@ -12,8 +12,8 @@ sea-orm = { git = "https://github.com/Acidic9/sea-orm.git", branch = "feat/sea-o
 ], default-features = false }
 
 [build-dependencies]
-awto = { path = "../../../../awto" }
-awto-compile = { path = "../../../../awto-compile" }
+awto = "0.1"
+awto-compile = "0.1"
 dotenv = "0.15"
 schema = { path = "../../schema" }
 sea-orm-build = { version = "0.2.6", git = "https://github.com/Acidic9/sea-orm.git", branch = "feat/sea-orm-build", package = "sea-orm-build", features = [
