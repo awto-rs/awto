@@ -2,6 +2,9 @@ use std::{env, fmt::Write};
 
 use awto_schema::protobuf::{ProtobufField, ProtobufMethod, ProtobufSchema, ProtobufService};
 
+const COMPILED_PROTO_FILE: &str = "app.proto";
+const COMPILED_RUST_FILE: &str = "app.rs";
+
 #[cfg(feature = "async")]
 pub fn compile_protobuf(
     schemas: Vec<ProtobufSchema>,
@@ -17,17 +20,17 @@ pub fn compile_protobuf(
         return Ok(());
     }
 
-    let protobuf_compiler = ProtobufCompiler::new(schemas, services);
+    let compiler = ProtobufCompiler::new(schemas, services);
 
-    let proto = protobuf_compiler.compile_file();
-    let proto_path = format!("{}/schema.proto", out_dir);
+    let proto = compiler.compile_file();
+    let proto_path = format!("{}/{}", out_dir, COMPILED_PROTO_FILE);
     fs::write(&proto_path, proto + "\n").await?;
 
     tonic_build::configure().compile(&[&proto_path], &[&out_dir])?;
 
-    let generated_code = protobuf_compiler.compile_generated_code();
+    let generated_code = compiler.compile_generated_code();
     if !generated_code.is_empty() {
-        let rs_path = format!("{}/schema.rs", out_dir);
+        let rs_path = format!("{}/{}", out_dir, COMPILED_RUST_FILE);
         let mut schema_file = fs::OpenOptions::new().append(true).open(&rs_path).await?;
 
         schema_file.write(generated_code.as_bytes()).await?;
@@ -47,17 +50,17 @@ pub fn compile_protobuf(
 
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    let protobuf_compiler = ProtobufCompiler::new(schemas, services);
+    let compiler = ProtobufCompiler::new(schemas, services);
 
-    let proto = protobuf_compiler.compile_file();
-    let proto_path = format!("{}/schema.proto", out_dir);
+    let proto = compiler.compile_file();
+    let proto_path = format!("{}/{}", out_dir, COMPILED_PROTO_FILE);
     fs::write(&proto_path, proto + "\n")?;
 
     tonic_build::configure().compile(&[&proto_path], &[&out_dir])?;
 
-    let generated_code = protobuf_compiler.compile_generated_code();
+    let generated_code = compiler.compile_generated_code();
     if !generated_code.is_empty() {
-        let rs_path = format!("{}/schema.rs", out_dir);
+        let rs_path = format!("{}/{}", out_dir, COMPILED_RUST_FILE);
         let mut schema_file = fs::OpenOptions::new().append(true).open(&rs_path)?;
 
         write!(schema_file, "{}", generated_code)?;
@@ -83,7 +86,7 @@ pub fn compile_protobuf(
 ///
 /// assert_eq!(protobuf_file, r#"syntax = "proto3";
 ///
-/// package schema;
+/// package app;
 ///
 /// import "google/protobuf/timestamp.proto";
 ///
@@ -150,6 +153,26 @@ impl ProtobufCompiler {
     pub fn compile_generated_code(&self) -> String {
         let mut code = String::new();
 
+        write!(
+            code,
+            r#"
+pub enum TryFromProtoError {{
+    InvalidUuid,
+    MissingField(String),
+}}
+
+impl ::std::fmt::Display for TryFromProtoError {{
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> Result<(), ::std::fmt::Error> {{
+        match self {{
+            Self::InvalidUuid => write!(f, "invalid uuid"),
+            Self::MissingField(field) => write!(f, "missing field '{{}}'", field),
+        }}
+    }}
+}}
+        "#
+        )
+        .unwrap();
+
         for message in self.all_distinct_messages() {
             if let Some(generated_code) = &message.generated_code {
                 write!(code, "{}", generated_code).unwrap();
@@ -187,7 +210,7 @@ impl ProtobufCompiler {
 
         writeln!(proto, r#"syntax = "proto3";"#).unwrap();
         writeln!(proto).unwrap();
-        writeln!(proto, r#"package schema;"#).unwrap();
+        writeln!(proto, r#"package app;"#).unwrap();
         writeln!(proto).unwrap();
         writeln!(proto, r#"import "google/protobuf/timestamp.proto";"#).unwrap();
 

@@ -123,10 +123,17 @@ impl ProtobufService {
                     let name_ident = format_ident!("{}", name.to_snake_case());
 
                     let expanded_call_method = if is_result {
-                        quote!(self.#name_ident(param)?)
+                        if method.sig.asyncness.is_some() {
+                            quote!(self.#name_ident(param).await?)
+                        } else {
+                            quote!(self.#name_ident(param)?)
+                        }
+                    } else if method.sig.asyncness.is_some() {
+                        quote!(self.#name_ident(param).await)
                     } else {
                         quote!(self.#name_ident(param))
                     };
+
 
                     methods.push(quote!(
                         async fn #name_ident(
@@ -134,7 +141,7 @@ impl ProtobufService {
                             request: ::tonic::Request<#param>,
                         ) -> Result<::tonic::Response<#returns>, ::tonic::Status> {
                             let inner = request.into_inner();
-                            let param = inner.into();
+                            let param = ::std::convert::TryInto::try_into(inner).map_err(|err: TryFromProtoError| ::tonic::Status::invalid_argument(err.to_string()))?;
                             let value = #expanded_call_method;
                             Ok(::tonic::Response::new(value.into()))
                         }

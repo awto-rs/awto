@@ -10,7 +10,7 @@ pub struct Product {
     pub updated_at: DateTime<FixedOffset>,
     pub name: String,
     #[awto(default = 0)]
-    pub price: u64,
+    pub price: i64,
     #[awto(max_len = 256)]
     pub description: Option<String>,
 }
@@ -23,7 +23,7 @@ pub struct Variant {
     #[awto(references = (Product, "id"))]
     pub product_id: Uuid,
     pub name: String,
-    pub price: u64,
+    pub price: i64,
 }
 
 #[derive(ProtobufModel)]

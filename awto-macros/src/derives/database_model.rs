@@ -2,7 +2,7 @@ use std::iter::FromIterator;
 
 use heck::SnakeCase;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use syn::spanned::Spanned;
 
 use crate::{
@@ -216,12 +216,94 @@ impl DeriveDatabaseModel {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
+        let expanded_impl_from_database_schema_generated_string =
+            self.expand_impl_from_database_schema_generated()?;
+        let generated_code = if expanded_impl_from_database_schema_generated_string.is_empty() {
+            quote!(None)
+        } else {
+            let generated_string = expanded_impl_from_database_schema_generated_string
+                .to_string()
+                .split("__schema_module_path__")
+                .collect::<Vec<_>>()
+                .join("\"###, module_path!(), r###\"");
+            let generated_string_expanded: TokenStream =
+                format!("r###\"{}\"###", generated_string).parse().unwrap();
+            quote!(Some(concat!(#generated_string_expanded).to_string()))
+        };
+
         Ok(quote!(
             impl awto_schema::database::IntoDatabaseSchema for #ident {
                 fn database_schema() -> awto_schema::database::DatabaseSchema {
                     awto_schema::database::DatabaseSchema {
                         table_name: #table_name.to_string(),
                         columns: vec![ #( #columns, )* ],
+                        generated_code: #generated_code,
+                    }
+                }
+            }
+        ))
+    }
+
+    fn expand_impl_from_database_schema_generated(&self) -> syn::Result<TokenStream> {
+        let Self { fields, ident, .. } = self;
+
+        let db_module_ident = format_ident!("{}", ident.to_string().to_snake_case());
+
+        let schema_path = quote!(__schema_module_path__);
+
+        let mut from_schema_fields = Vec::new();
+        let mut from_db_fields = Vec::new();
+
+        for field in fields {
+            let field_ident = field.field.ident.as_ref().unwrap();
+            let ty = &field.field.ty;
+
+            let ty_string = match ty {
+                syn::Type::Reference(reference) => {
+                    let mut reference = reference.clone();
+                    reference.lifetime = None;
+                    quote!(reference.elem.as_ref()).to_string()
+                }
+                other => quote!(#other).to_string(),
+            }
+            .replace(' ', "");
+            let ty_str = if ty_string.starts_with("Option<") {
+                &ty_string[7..(ty_string.len() - 1)]
+            } else {
+                ty_string.as_str()
+            };
+
+            if ty_str.starts_with("std::vec::Vec")
+                || ty_str.starts_with("vec::Vec")
+                || ty_str.starts_with("Vec")
+            {
+                from_schema_fields.push(
+                    quote!(#field_ident: val.#field_ident.into_iter().map(|v| v.into()).collect()),
+                );
+                from_db_fields.push(
+                    quote!(#field_ident: val.#field_ident.into_iter().map(|v| v.into()).collect()),
+                );
+            } else {
+                from_schema_fields.push(quote!(#field_ident: val.#field_ident.into()));
+                from_db_fields.push(quote!(#field_ident: val.#field_ident.into()));
+            }
+        }
+
+        Ok(quote!(
+            impl ::std::convert::From<crate::#db_module_ident::Model> for #schema_path::#ident {
+                #[allow(unused_variables)]
+                fn from(val: crate::#db_module_ident::Model) -> Self {
+                    Self {
+                        #( #from_schema_fields, )*
+                    }
+                }
+            }
+
+            impl ::std::convert::From<#schema_path::#ident> for crate::#db_module_ident::Model {
+                #[allow(unused_variables)]
+                fn from(val: #schema_path::#ident) -> Self {
+                    Self {
+                        #( #from_db_fields, )*
                     }
                 }
             }
@@ -271,17 +353,17 @@ impl DeriveDatabaseModel {
 
         let db_type = match ty_str {
             // Numeric types
-            "i16" | "u16" => quote!(SmallInt),
-            "i32" | "u32" => quote!(Integer),
-            "i64" | "u64" => quote!(BigInt),
+            "i16" => quote!(SmallInt),
+            "i32" => quote!(Integer),
+            "i64" => quote!(BigInt),
             "f32" => quote!(Float),
             "f64" => quote!(Double),
 
             // Character types
-            "String" | "&str" => quote!(Text),
+            "String" => quote!(Text),
 
             // Binary data types
-            "Vec<u8>" | "&u8" => quote!(Binary),
+            "Vec<u8>" => quote!(Binary),
 
             // Date/Time types
             "chrono::NaiveDateTime" | "NaiveDateTime" => quote!(Timestamp),

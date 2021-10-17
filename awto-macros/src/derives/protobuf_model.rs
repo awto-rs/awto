@@ -89,6 +89,7 @@ impl DeriveProtobufModel {
 
         for field in fields {
             let field_ident = field.field.ident.as_ref().unwrap();
+            let field_ident_string = field_ident.to_string();
             let ty = &field.field.ty;
 
             let ty_string = match ty {
@@ -121,7 +122,7 @@ impl DeriveProtobufModel {
                     ));
                     from_proto_fields.push(quote!(
                         #field_ident: {
-                            let unwrapped_value = val.#field_ident.unwrap();
+                            let unwrapped_value = val.#field_ident.ok_or_else(|| TryFromProtoError::MissingField(#field_ident_string.to_string()))?;
                             ::chrono::DateTime::from_utc(
                                 ::chrono::naive::NaiveDateTime::from_timestamp(
                                     unwrapped_value.seconds,
@@ -137,7 +138,7 @@ impl DeriveProtobufModel {
                         #field_ident: val.#field_ident.to_string()
                     ));
                     from_proto_fields.push(quote!(
-                        #field_ident: ::uuid::Uuid::parse_str(&val.#field_ident).unwrap()
+                        #field_ident: ::uuid::Uuid::parse_str(&val.#field_ident).map_err(|_| TryFromProtoError::InvalidUuid)?
                     ));
                 }
                 _ => {
@@ -146,7 +147,7 @@ impl DeriveProtobufModel {
                         || ty_str.starts_with("Vec")
                     {
                         from_rust_fields.push(quote!(#field_ident: val.#field_ident.into_iter().map(|v| v.into()).collect()));
-                        from_proto_fields.push(quote!(#field_ident: val.#field_ident.into_iter().map(|v| v.into()).collect()));
+                        from_proto_fields.push(quote!(#field_ident: val.#field_ident.into_iter().map(|v| ::std::convert::TryFrom::try_from(v)).collect::<Result<_, _>>()?));
                     } else {
                         from_rust_fields.push(quote!(#field_ident: val.#field_ident.into()));
                         from_proto_fields.push(quote!(#field_ident: val.#field_ident.into()));
@@ -156,15 +157,19 @@ impl DeriveProtobufModel {
         }
 
         Ok(quote!(
-            impl From<#ident> for #schema_path::#ident {
-                fn from(val: #ident) -> Self {
-                    Self {
+            impl ::std::convert::TryFrom<#ident> for #schema_path::#ident {
+                type Error = TryFromProtoError;
+
+                #[allow(unused_variables)]
+                fn try_from(val: #ident) -> Result<Self, Self::Error> {
+                    Ok(Self {
                         #( #from_proto_fields, )*
-                    }
+                    })
                 }
             }
 
-            impl From<#schema_path::#ident> for #ident {
+            impl ::std::convert::From<#schema_path::#ident> for #ident {
+                #[allow(unused_variables)]
                 fn from(val: #schema_path::#ident) -> Self {
                     Self {
                         #( #from_rust_fields, )*

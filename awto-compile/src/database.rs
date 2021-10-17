@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Write};
+use std::{borrow::Cow, env, fmt::Write};
 
 use awto_schema::database::{DatabaseColumn, DatabaseDefault, DatabaseSchema, DatabaseType};
 use sqlx::{Executor, PgPool};
@@ -6,18 +6,68 @@ use tokio_stream::StreamExt;
 
 use crate::error::Error;
 
+const COMPILED_RUST_FILE: &str = "app.rs";
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CompileDatabaseResult {
     pub queries_executed: usize,
     pub rows_affected: u64,
 }
 
+#[cfg(feature = "async")]
 pub async fn compile_database(
     uri: &str,
     schemas: Vec<DatabaseSchema>,
 ) -> Result<CompileDatabaseResult, Box<dyn std::error::Error>> {
+    use tokio::fs;
+
+    let out_dir = env::var("OUT_DIR").unwrap();
     let pool = PgPool::connect(uri).await?;
     let compiler = DatabaseCompiler::from_pool(&pool, schemas);
+
+    let generated_code = compiler.compile_generated_code();
+    if !generated_code.is_empty() {
+        let rs_path = format!("{}/{}", out_dir, COMPILED_RUST_FILE);
+        fs::write(rs_path, generated_code).await?;
+    }
+
+    let sql = compiler.compile().await?;
+    if !sql.is_empty() {
+        let results = pool
+            .execute_many(sql.as_str())
+            .collect::<Result<Vec<_>, _>>()
+            .await?;
+        let queries_executed = results.len();
+        let rows_affected = results
+            .iter()
+            .fold(0, |acc, result| result.rows_affected() + acc);
+
+        Ok(CompileDatabaseResult {
+            queries_executed,
+            rows_affected,
+        })
+    } else {
+        Ok(CompileDatabaseResult::default())
+    }
+}
+
+#[cfg(not(feature = "async"))]
+pub async fn compile_database(
+    uri: &str,
+    schemas: Vec<DatabaseSchema>,
+) -> Result<CompileDatabaseResult, Box<dyn std::error::Error>> {
+    use std::fs;
+
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let pool = PgPool::connect(uri).await?;
+    let compiler = DatabaseCompiler::from_pool(&pool, schemas);
+
+    let generated_code = compiler.compile_generated_code();
+    if !generated_code.is_empty() {
+        let rs_path = format!("{}/{}", out_dir, COMPILED_RUST_FILE);
+        fs::write(rs_path, generated_code)?;
+    }
+
     let sql = compiler.compile().await?;
     if !sql.is_empty() {
         let results = pool
@@ -80,6 +130,19 @@ impl<'pool> DatabaseCompiler<'pool> {
         }
 
         Ok(sql.trim().to_string())
+    }
+
+    /// Compiles generated Rust code from schemas and services.
+    pub fn compile_generated_code(&self) -> String {
+        let mut code = String::new();
+
+        for table in &self.tables {
+            if let Some(generated_code) = &table.generated_code {
+                write!(code, "{}", generated_code).unwrap();
+            }
+        }
+
+        code.trim().to_string()
     }
 
     async fn fetch_table(

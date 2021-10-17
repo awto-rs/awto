@@ -141,6 +141,7 @@ pub trait IntoDatabaseSchema {
 pub struct DatabaseSchema {
     pub table_name: String,
     pub columns: Vec<DatabaseColumn>,
+    pub generated_code: Option<String>,
 }
 
 #[cfg(test)]
