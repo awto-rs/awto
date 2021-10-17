@@ -19,7 +19,7 @@ keywords = ["awto", "database", "protobuf", "schema", "macros"]
 proc-macro = true
 
 [dependencies]
-bae = { path = "../../bae/bae" }
+better-bae = "0.1"
 heck = "0.3"
 paste = "1.0"
 proc-macro2 = "1.0"

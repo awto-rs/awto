@@ -1,4 +1,4 @@
-use bae::FromAttributes;
+use better_bae::FromAttributes;
 use quote::ToTokens;
 use syn::spanned::Spanned;
 

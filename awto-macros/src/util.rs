@@ -1,4 +1,4 @@
-use bae::TryFromAttributes;
+use better_bae::TryFromAttributes;
 use proc_macro2::TokenStream;
 
 use crate::error::Error;

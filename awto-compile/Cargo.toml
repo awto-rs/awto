@@ -16,7 +16,7 @@ categories = [
 keywords = ["awto", "database", "protobuf", "schema", "macros"]
 
 [dependencies]
-awto = { path = "../awto" }
+awto = { path = "../awto", version = "0.1.0" }
 chrono = "0.4"
 sqlx = { version = "0.5", features = ["postgres", "runtime-tokio-rustls"] }
 thiserror = "1.0"
