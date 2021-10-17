@@ -1,7 +1,24 @@
 [package]
 name = "awto"
 version = "0.1.0"
+authors = ["Ari Seyhun <ariseyhun@live.com.au>"]
 edition = "2018"
+description = "🪐 Awtomate your Rust microservices with awto"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/awto-rs/awto"
+categories = [
+  "compilers",
+  "database",
+  "development-tools",
+  "encoding",
+  "parsing",
+]
+keywords = ["awto", "database", "protobuf", "schema", "macros"]
 
 [dependencies]
-awto-schema = { path = "../awto-schema" }
+awto-macros = { path = "../awto-macros" }
+lazy_static = "1.4"
+
+[dev-dependencies]
+chrono = "0.4"
+uuid = "0.8"

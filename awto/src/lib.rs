@@ -1,3 +1,19 @@
+//! <div align="center">
+//!   <h1>awto</h1>
+//!
+//!   <p>
+//!     <strong>Awtomate your 🦀 microservices with awto</strong>
+//!   </p>
+//!
+//! </div>
+//!
+//! # Awto
+//!
+//! Awto treats your rust project as the source of truth for microservices,
+//! and generates **database tables** and **protobufs** based on your schema and service.
+//!
+//! See more on the [repository](https://github.com/awto-rs/awto).
+
 pub use awto_macros as macros;
 
 pub mod database;

@@ -1,7 +1,19 @@
 [package]
 name = "awto-cli"
 version = "0.1.0"
+authors = ["Ari Seyhun <ariseyhun@live.com.au>"]
 edition = "2018"
+description = "Awto cli for compiling microservices"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/awto-rs/awto"
+categories = [
+  "command-line-utilities",
+  "compilers",
+  "database",
+  "encoding",
+  "parsing",
+]
+keywords = ["awto", "database", "protobuf", "schema", "macros"]
 
 [dependencies]
 anyhow = "1.0"
