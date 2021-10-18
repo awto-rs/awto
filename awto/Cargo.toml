@@ -1,6 +1,6 @@
 [package]
 name = "awto"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Ari Seyhun <ariseyhun@live.com.au>"]
 edition = "2018"
 description = "Awtomate your 🦀 microservices with awto"
@@ -17,7 +17,7 @@ categories = [
 keywords = ["awto", "database", "protobuf", "schema", "macros"]
 
 [dependencies]
-awto-macros = { version = "0.1.0", path = "../awto-macros" }
+awto-macros = { version = "0.1.1", path = "../awto-macros" }
 lazy_static = "1.4"
 
 [dev-dependencies]
