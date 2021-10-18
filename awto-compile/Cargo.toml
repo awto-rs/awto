@@ -1,6 +1,6 @@
 [package]
 name = "awto-compile"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Ari Seyhun <ariseyhun@live.com.au>"]
 edition = "2018"
 description = "Compile microservices built with Awto"
@@ -17,7 +17,7 @@ categories = [
 keywords = ["awto", "database", "protobuf", "schema", "macros"]
 
 [dependencies]
-awto = { version = "0.1.0", path = "../awto" }
+awto = { version = "0.1.1", path = "../awto" }
 chrono = "0.4"
 sqlx = { version = "0.5", features = ["postgres", "runtime-tokio-rustls"] }
 thiserror = "1.0"
