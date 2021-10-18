@@ -17,7 +17,7 @@ categories = [
 keywords = ["awto", "database", "protobuf", "schema", "macros"]
 
 [dependencies]
-awto-macros = { path = "../awto-macros", version = "0.1.0" }
+awto-macros = { version = "0.1.0", path = "../awto-macros" }
 lazy_static = "1.4"
 
 [dev-dependencies]
