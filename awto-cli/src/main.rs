@@ -17,7 +17,7 @@ use std::io::Write;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use clap::{AppSettings, Clap};
+use clap::Parser;
 use colored::Colorize;
 use compile::Compile;
 use log::{error, Level, LevelFilter};
@@ -27,14 +27,13 @@ mod macros;
 mod util;
 
 /// Awto cli
-#[derive(Clap)]
-#[clap(setting = AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct Opts {
     #[clap(subcommand)]
     pub subcmd: SubCommand,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 enum SubCommand {
     Compile(Compile),
 }

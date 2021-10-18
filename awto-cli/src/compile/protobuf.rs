@@ -3,7 +3,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
-use clap::{AppSettings, Clap};
+use clap::Parser;
 use log::info;
 use tokio::fs;
 
@@ -15,8 +15,7 @@ use crate::{
 use super::{build_awto_pkg, prepare_awto_dir};
 
 /// Compiles protobuf package from app service
-#[derive(Clap)]
-#[clap(setting = AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct Protobuf {
     /// Prints more information
     #[clap(short, long)]

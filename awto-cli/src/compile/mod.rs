@@ -3,7 +3,7 @@ use std::process::Stdio;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
-use clap::{AppSettings, Clap, IntoApp};
+use clap::{Parser, IntoApp};
 use tokio::fs;
 
 use crate::Runnable;
@@ -15,8 +15,7 @@ mod database;
 mod protobuf;
 
 /// Compiles app to generate packages
-#[derive(Clap)]
-#[clap(setting = AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct Compile {
     /// Compiles all packages
     #[clap(long)]
@@ -28,7 +27,7 @@ pub struct Compile {
     pub verbose: bool,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum SubCommand {
     Database(Database),
     Protobuf(Protobuf),

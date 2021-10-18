@@ -3,7 +3,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
-use clap::{AppSettings, Clap};
+use clap::Parser;
 use heck::SnakeCase;
 use log::info;
 use proc_macro2::TokenTree;
@@ -18,8 +18,7 @@ use crate::{
 use super::prepare_awto_dir;
 
 /// Compiles database package from app schema
-#[derive(Clap)]
-#[clap(setting = AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct Database {
     /// Prints more information
     #[clap(short, long)]
