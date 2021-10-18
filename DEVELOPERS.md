@@ -3,11 +3,10 @@
 ### Forking awto on Github
 
 To contribute code to awto, you must have a GitHub account so you can push code to your own
-fork of awto and open Pull Requests in the [GitHub Repository][github].
+fork of awto and open Pull Requests in the [GitHub Repository](https://github.com/awto-rs/awto).
 
 To create a Github account, follow the instructions [here](https://github.com/signup/free).
-Afterwards, go ahead and [fork](http://help.github.com/forking) the
-[main AngularJS repository][github].
+Afterwards, go ahead and [fork](http://help.github.com/forking) the [main awto repository](https://github.com/awto-rs/awto).
 
 ### Building awto
 
