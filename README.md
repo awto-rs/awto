@@ -100,6 +100,31 @@ Currently the available libraries are:
 - **`database`** - based on [SeaORM](https://github.com/SeaQL/sea-orm), provides a database library for use in your service
 - **`protobuf`** - based on [tonic](https://github.com/hyperium/tonic), provides a protobuf server library
 
+#### Install
+
+The cli can be installed with:
+
+```bash
+cargo install awto-cli
+```
+
+This will provide a binary called `awto`.
+
+Check installation with `awto --help`.
+
+#### Compile library
+
+To compile a library, you can run:
+
+```bash
+awto compile <output>
+```
+
+The available outputs currently are:
+
+- `database` - syncs your database with your schema and generates a lib for performing operations with the database via [SeaORM](https://github.com/SeaQL/sea-orm).
+- `protobuf` - generates a protobuf file and lib which can be used as a protobuf server & client via [tonic](https://github.com/hyperium/tonic).
+
 ## Roadmap
 
 Awto is still in alpha stages and is made mostly as an experiment at this point.
