@@ -15,6 +15,10 @@ categories = [
 ]
 keywords = ["awto", "database", "protobuf", "schema", "macros"]
 
+[[bin]]
+name = "awto"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
