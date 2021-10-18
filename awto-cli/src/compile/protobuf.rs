@@ -65,15 +65,9 @@ impl Protobuf {
     const PROTOBUF_DIR: &'static str = "./awto/protobuf";
     const PROTOBUF_SRC_DIR: &'static str = "./awto/protobuf/src";
     const PROTOBUF_CARGO_PATH: &'static str = "./awto/protobuf/Cargo.toml";
-    const PROTOBUF_CARGO_TOML_BYTES: &'static [u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/templates/protobuf/Cargo.toml"
-    ));
+    const PROTOBUF_CARGO_TOML_BYTES: &'static [u8] = include_bytes!("../templates/protobuf/Cargo.toml.template");
     const PROTOBUF_BUILD_PATH: &'static str = "./awto/protobuf/build.rs";
-    const PROTOBUF_BUILD_BYTES: &'static [u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/templates/protobuf/build.rs"
-    ));
+    const PROTOBUF_BUILD_BYTES: &'static [u8] = include_bytes!("../templates/protobuf/build.rs.template");
     const PROTOBUF_LIB_PATH: &'static str = "./awto/protobuf/src/lib.rs";
 
     async fn prepare_protobuf_dir() -> Result<()> {
