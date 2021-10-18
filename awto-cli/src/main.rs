@@ -83,7 +83,7 @@ async fn main() {
         #[cfg(not(debug_assertions))]
         eprintln!(
             "\nIf the problem persists, please submit an issue on the Github repository.\n{}",
-            "https://github.com/Acidic9/awto/issues/new".underline()
+            "https://github.com/awto-rs/awto/issues/new".underline()
         );
         std::process::exit(1);
     }

@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Ari Seyhun <ariseyhun@live.com.au>"]
 edition = "2018"
 description = "Compile microservices built with Awto"
+readme = "../README.md"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/awto-rs/awto"
 categories = [
