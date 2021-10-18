@@ -1,6 +1,6 @@
 [package]
 name = "awto-cli"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Ari Seyhun <ariseyhun@live.com.au>"]
 edition = "2018"
 description = "Awto cli for compiling microservices"
