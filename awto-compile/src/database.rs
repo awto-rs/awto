@@ -1,4 +1,4 @@
-use std::{borrow::Cow, env, fmt::Write};
+use std::{borrow::Cow, env, fmt::Write, io};
 
 use awto::{
     database::{DatabaseColumn, DatabaseDefault, DatabaseTable, DatabaseType},
@@ -39,6 +39,8 @@ pub async fn compile_database(
         fs::write(rs_path, generated_code).await?;
     }
 
+    compiler.append_sea_orm_models().await?;
+
     let sql = compiler.compile().await?;
     if !sql.is_empty() {
         let results = pool
@@ -75,6 +77,8 @@ pub async fn compile_database(
         let rs_path = format!("{}/{}", out_dir, COMPILED_RUST_FILE);
         fs::write(rs_path, generated_code)?;
     }
+
+    compiler.append_sea_orm_models()?;
 
     let sql = compiler.compile().await?;
     if !sql.is_empty() {
@@ -192,7 +196,6 @@ impl<'pool> DatabaseCompiler<'pool> {
             write!(code, "{}", expanded.to_string()).unwrap();
         }
 
-   
         for (model, table) in self.database_sub_tables() {
             let ident = format_ident!("{}", model.name);
             let db_module_ident = format_ident!("{}", table.name);
@@ -239,6 +242,44 @@ impl<'pool> DatabaseCompiler<'pool> {
         }
 
         code.trim().to_string()
+    }
+
+    #[cfg(feature = "async")]
+    async fn append_sea_orm_models(&self) -> Result<(), io::Error> {
+        use tokio::fs;
+        use tokio::io::AsyncWriteExt;
+
+        let out_dir = env::var("OUT_DIR").unwrap();
+        let rs_path = format!("{}/{}", out_dir, COMPILED_RUST_FILE);
+
+        let mut file = fs::OpenOptions::new().append(true).open(&rs_path).await?;
+
+        for (_, table) in self.database_tables() {
+            file.write(format!("pub mod {} {{", table.name).as_bytes()).await?;
+            file.write(format!(r#"    sea_orm::include_model!("{}");"#, table.name).as_bytes()).await?;
+            file.write(b"}").await?;
+        }
+
+        Ok(())
+    }
+    
+    #[cfg(not(feature = "async"))]
+    fn append_sea_orm_models(&self) -> Result<(), io::Error> {
+        use std::fs;
+        use std::io::Write;
+
+        let out_dir = env::var("OUT_DIR").unwrap();
+        let rs_path = format!("{}/{}", out_dir, COMPILED_RUST_FILE);
+
+        let mut file = fs::OpenOptions::new().append(true).open(&rs_path)?;
+
+        for (_, table) in self.database_tables() {
+            write!(file, "pub mod {} {{", table.name).unwrap();
+            write!(file, r#"    sea_orm::include_model!("{}");"#, table.name).unwrap();
+            write!(file, "}}").unwrap();
+        }
+
+        Ok(())
     }
 
     fn database_tables(&self) -> Vec<(&Model, &DatabaseTable)> {
