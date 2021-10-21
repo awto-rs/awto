@@ -92,31 +92,36 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
 name = "awto"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "awto-macros",
+ "chrono",
  "lazy_static",
+ "tonic",
+ "uuid",
 ]
 
 [[package]]
 name = "awto-compile"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "awto",
  "chrono",
+ "heck",
+ "proc-macro2",
+ "quote",
  "sqlx",
  "thiserror",
  "tokio-stream",
- "tonic",
  "tonic-build",
  "uuid",
 ]
 
 [[package]]
 name = "awto-macros"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
- "bae 0.1.7",
+ "better-bae",
  "heck",
  "paste",
  "proc-macro2",
@@ -138,17 +143,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "bae"
-version = "0.1.7"
+name = "base64"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
+
+[[package]]
+name = "better-bae"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0f32cf98e90d24ad0a991e0ad64f44086c8af4e66db3d4685fd50e5930941db"
 dependencies = [
- "bae-macros",
+ "better-bae-macros",
  "proc-macro2",
  "syn",
 ]
 
 [[package]]
-name = "bae-macros"
-version = "0.1.7"
+name = "better-bae-macros"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5806e0761284026a291b57f792620924b957622e4e2384bfaa6950a263128fd"
 dependencies = [
  "heck",
  "proc-macro-error 1.0.4",
@@ -156,12 +171,6 @@ dependencies = [
  "quote",
  "syn",
 ]
-
-[[package]]
-name = "base64"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
 name = "bitflags"
@@ -180,9 +189,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.7.1"
+version = "3.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9df67f7bf9ef8498769f994239c45613ef0c5899415fb58e9add412d2c1a538"
+checksum = "8f1e260c3a9040a7c19a12468758f4c16f31a81a1fe087482be9570ec864bb6c"
 
 [[package]]
 name = "byteorder"
@@ -666,9 +675,9 @@ dependencies = [
 
 [[package]]
 name = "instant"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "716d3d89f35ac6a34fd0eed635395f4c3b76fa889338a4632e5231a8684216bd"
+checksum = "7a5bbe824c507c5da5956355e86a746d82e0e1464f65d862cc5e71da70e94b2c"
 dependencies = [
  "cfg-if",
 ]
@@ -1325,8 +1334,6 @@ name = "schema"
 version = "0.1.0"
 dependencies = [
  "awto",
- "chrono",
- "uuid",
 ]
 
 [[package]]
@@ -1394,7 +1401,7 @@ name = "sea-orm-macros"
 version = "0.2.6"
 source = "git+https://github.com/Acidic9/sea-orm.git?branch=feat/sea-orm-build#40f8a186471948cd0aa0c4ca8d0aef35ba088a5e"
 dependencies = [
- "bae 0.1.6",
+ "bae",
  "convert_case",
  "heck",
  "proc-macro2",
@@ -1962,9 +1969,9 @@ dependencies = [
 
 [[package]]
 name = "tower"
-version = "0.4.9"
+version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d15a6b60cdff0cb039d81d3b37f8bc3d7e53dca09069aae3ef2502ca4834fe30"
+checksum = "c00e500fff5fa1131c866b246041a6bf96da9c965f8fe4128cb1421f23e93c00"
 dependencies = [
  "futures-core",
  "futures-util",

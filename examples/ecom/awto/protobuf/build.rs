@@ -1,9 +1,9 @@
-use awto::{schema::Schema, service::Service};
+use awto::service::Service;
 use awto_compile::protobuf::compile_protobuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     compile_protobuf(
-        schema::Schema::protobuf_schemas(),
+        schema::MODELS.to_vec(),
         service::Service::protobuf_services(),
     )
 }

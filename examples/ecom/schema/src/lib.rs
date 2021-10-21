@@ -1,39 +1,49 @@
 use awto::prelude::*;
-use chrono::{DateTime, FixedOffset};
-use uuid::Uuid;
 
-register_schemas!(Product);
+schema! {
+    #[database_table]
+    #[protobuf_message]
+    pub struct Product {
+        pub id: Uuid,
+        pub created_at: DateTime<FixedOffset>,
+        pub updated_at: DateTime<FixedOffset>,
+        pub name: String,
+        #[awto(default = 0)]
+        pub price: i64,
+        #[awto(max_len = 120)]
+        pub description: Option<String>,
+        pub category: Option<String>,
+    }
 
-#[derive(Model)]
-pub struct Product {
-    pub id: Uuid,
-    pub created_at: DateTime<FixedOffset>,
-    pub updated_at: DateTime<FixedOffset>,
-    pub name: String,
-    #[awto(default = 0)]
-    pub price: i64,
-    #[awto(max_len = 120)]
-    pub description: Option<String>,
-    pub category: Option<String>,
+    #[protobuf_message]
+    pub struct Empty {}
+
+    #[protobuf_message]
+    pub struct ProductId {
+        pub id: Uuid,
+    }
+
+    #[protobuf_message]
+    #[database_sub_table(Product)]
+    pub struct NewProduct {
+        pub name: String,
+        pub price: Option<i64>,
+        pub description: Option<String>,
+        pub category: Option<String>,
+    }
+
+    #[protobuf_message]
+    pub struct ProductList {
+        pub products: Vec<Product>,
+    }
 }
 
-#[derive(ProtobufModel)]
-pub struct Empty {}
+#[cfg(test)]
+mod test {
+    use super::*;
 
-#[derive(ProtobufModel)]
-pub struct ProductId {
-    pub id: Uuid,
-}
-
-#[derive(ProtobufModel)]
-pub struct NewProduct {
-    pub name: String,
-    pub price: Option<i64>,
-    pub description: Option<String>,
-    pub category: Option<String>,
-}
-
-#[derive(ProtobufModel)]
-pub struct ProductList {
-    pub products: Vec<Product>,
+    #[test]
+    fn models() {
+        println!("{:#?}", &*MODELS);
+    }
 }

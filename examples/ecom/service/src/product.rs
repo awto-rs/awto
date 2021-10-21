@@ -1,7 +1,7 @@
 use awto::macros::protobuf_service;
 use database::{
     product,
-    sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveValue},
+    sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel},
 };
 use schema::*;
 use tonic::Status;
@@ -13,13 +13,7 @@ pub struct ProductService {
 #[protobuf_service]
 impl ProductService {
     pub async fn create_product(&self, request: NewProduct) -> Result<ProductId, Status> {
-        let active_model = product::ActiveModel {
-            name: request.name.into_active_value(),
-            price: request.price.unwrap_or_default().into_active_value(),
-            description: request.description.into_active_value(),
-            category: request.category.into_active_value(),
-            ..Default::default()
-        };
+        let active_model = request.into_active_model();
 
         let result = active_model
             .insert(&self.conn)

@@ -5,5 +5,3 @@ edition = "2018"
 
 [dependencies]
 awto = { path = "../../../awto" }
-chrono = "0.4"
-uuid = { version = "0.8", features = ["v4"] }
