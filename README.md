@@ -33,19 +33,21 @@ The schema lib's purpose is to define your microservice models which will be use
 
 ```rust
 // schema/src/lib.rs
+use awto::prelude::*;
 
-register_schemas!(Product);
-
-#[derive(Model)]
-pub struct Product {
-    pub id: Uuid,
-    pub created_at: DateTime<FixedOffset>,
-    pub updated_at: DateTime<FixedOffset>,
-    pub name: String,
-    #[awto(max_len = 120)]
-    pub description: Option<String>,
-    #[awto(default = 0)]
-    pub price: i64,
+schema! {
+    #[database_table]
+    #[protobuf_message]
+    pub struct Product {
+        pub id: Uuid,
+        pub created_at: DateTime<FixedOffset>,
+        pub updated_at: DateTime<FixedOffset>,
+        pub name: String,
+        #[awto(max_len = 120)]
+        pub description: Option<String>,
+        #[awto(default = 0)]
+        pub price: i64,
+    }
 }
 ```
 
