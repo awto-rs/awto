@@ -1,6 +1,6 @@
 use std::iter::FromIterator;
 
-use heck::{CamelCase, SnakeCase};
+use heck::CamelCase;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned;
@@ -37,9 +37,12 @@ impl ProtobufService {
                         param,
                         returns,
                         validators: method_validators,
+                        is_result,
                         ..
                     } = self.decode_impl_method(method)?;
                     validators.extend(method_validators);
+
+                    let is_async = method.sig.asyncness.is_some();
 
                     // Validate parameter
                     let param_type_validator_ident =
@@ -47,7 +50,7 @@ impl ProtobufService {
                     validators.push(quote_spanned!(
                             param.span()=>
                                 #[allow(non_camel_case_types)]
-                                trait #param_type_validator_ident: awto::protobuf::IntoProtobufSchema {}
+                                trait #param_type_validator_ident: awto::protobuf::IntoProtobufMessage {}
                                 impl #param_type_validator_ident for #param {}
                         ));
 
@@ -57,15 +60,17 @@ impl ProtobufService {
                     validators.push(quote_spanned!(
                         returns.span()=>
                             #[allow(non_camel_case_types)]
-                            trait #return_type_validator_ident: awto::protobuf::IntoProtobufSchema {}
+                            trait #return_type_validator_ident: awto::protobuf::IntoProtobufMessage {}
                             impl #return_type_validator_ident for #returns {}
                     ));
 
                     methods.push(quote!(
                         awto::protobuf::ProtobufMethod {
+                            is_async: #is_async,
                             name: #name.to_string(),
-                            param: <#param as awto::protobuf::IntoProtobufSchema>::protobuf_schema(),
-                            returns: <#returns as awto::protobuf::IntoProtobufSchema>::protobuf_schema(),
+                            param: <#param as awto::protobuf::IntoProtobufMessage>::protobuf_message(),
+                            returns: <#returns as awto::protobuf::IntoProtobufMessage>::protobuf_message(),
+                            returns_result: #is_result,
                         }
                     ))
                 }
@@ -73,89 +78,18 @@ impl ProtobufService {
             }
         }
 
-        let expanded_impl_protobuf_service_generated_string =
-            self.expand_impl_protobuf_service_generated()?;
-        let generated_code = if expanded_impl_protobuf_service_generated_string.is_empty() {
-            quote!(None)
-        } else {
-            let generated_string = expanded_impl_protobuf_service_generated_string
-                .to_string()
-                .split("__service_module_path__")
-                .collect::<Vec<_>>()
-                .join("\"###, module_path!(), r###\"");
-            let generated_string_expanded: TokenStream =
-                format!("r###\"{}\"###", generated_string).parse().unwrap();
-            quote!(Some(concat!(#generated_string_expanded).to_string()))
-        };
-
         Ok(quote!(
             impl awto::protobuf::IntoProtobufService for #ident {
                 fn protobuf_service() -> awto::protobuf::ProtobufService {
                     awto::protobuf::ProtobufService {
-                        name: #name.to_string(),
                         methods: vec![ #( #methods, )* ],
-                        generated_code: #generated_code,
+                        module_path: module_path!().to_string(),
+                        name: #name.to_string(),
                     }
                 }
             }
 
             #( #validators )*
-        ))
-    }
-
-    fn expand_impl_protobuf_service_generated(&self) -> syn::Result<TokenStream> {
-        let Self { ident, items, .. } = self;
-
-        let service_path = quote!(__service_module_path__);
-        let service_server_name = format_ident!("{}_server", ident.to_string().to_snake_case());
-
-        let mut methods = Vec::new();
-        for item in items {
-            match item {
-                syn::ImplItem::Method(method) => {
-                    let MethodInfo {
-                        name,
-                        param,
-                        returns,
-                        is_result,
-                        ..
-                    } = self.decode_impl_method(method)?;
-                    let name_ident = format_ident!("{}", name.to_snake_case());
-
-                    let expanded_call_method = if is_result {
-                        if method.sig.asyncness.is_some() {
-                            quote!(self.#name_ident(param).await?)
-                        } else {
-                            quote!(self.#name_ident(param)?)
-                        }
-                    } else if method.sig.asyncness.is_some() {
-                        quote!(self.#name_ident(param).await)
-                    } else {
-                        quote!(self.#name_ident(param))
-                    };
-
-
-                    methods.push(quote!(
-                        async fn #name_ident(
-                            &self,
-                            request: ::tonic::Request<#param>,
-                        ) -> Result<::tonic::Response<#returns>, ::tonic::Status> {
-                            let inner = request.into_inner();
-                            let param = ::std::convert::TryInto::try_into(inner).map_err(|err: TryFromProtoError| ::tonic::Status::invalid_argument(err.to_string()))?;
-                            let value = #expanded_call_method;
-                            Ok(::tonic::Response::new(value.into()))
-                        }
-                    ));
-                }
-                _ => continue,
-            }
-        }
-
-        Ok(quote!(
-            #[::tonic::async_trait]
-            impl #service_server_name::#ident for #service_path::#ident {
-                #( #methods )*
-            }
         ))
     }
 
@@ -287,7 +221,7 @@ impl ProtobufService {
 impl ProcMacro for ProtobufService {
     type Input = syn::ItemImpl;
 
-    fn new(_args: syn::AttributeArgs, input: Self::Input) -> Result<Self, Error> {
+    fn new(input: Self::Input) -> Result<Self, Error> {
         let ident = match &*input.self_ty {
             syn::Type::Path(type_path) => type_path.path.get_ident().unwrap().clone(),
             _ => {
@@ -307,7 +241,7 @@ impl ProcMacro for ProtobufService {
         })
     }
 
-    fn expand(&self) -> syn::Result<TokenStream> {
+    fn expand(self) -> syn::Result<TokenStream> {
         let input = &self.input;
 
         let expanded_input = quote!(#input);

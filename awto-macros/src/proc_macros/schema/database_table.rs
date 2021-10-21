@@ -1,50 +1,76 @@
-use std::iter::FromIterator;
-
 use heck::SnakeCase;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
 use crate::{
     attributes::ItemAttrs,
     error::Error,
-    util::{parse_struct_fields, DeriveMacro, Field},
+    util::{parse_fields, Field},
 };
 
-pub struct DeriveDatabaseModel {
+pub struct DatabaseTableModel {
     fields: Vec<Field<ItemAttrs>>,
     ident: syn::Ident,
+    is_sub_model: bool,
 }
 
-impl DeriveDatabaseModel {
-    fn expand_impl_database_schema(&self) -> syn::Result<TokenStream> {
+impl DatabaseTableModel {
+    pub fn new(item: syn::ItemStruct, is_sub_model: bool) -> Result<Self, Error> {
+        let punctuated_fields = match item.fields {
+            syn::Fields::Named(named) => named.named,
+            _ => return Err(Error::FieldsNotNamed),
+        };
+
+        let fields = parse_fields::<ItemAttrs>(punctuated_fields)?;
+
+        let ident = item.ident;
+
+        Ok(DatabaseTableModel {
+            fields,
+            ident,
+            is_sub_model,
+        })
+    }
+
+    pub fn expand(self) -> syn::Result<TokenStream> {
+        let expanded_database_table = self.expand_database_table()?;
+
+        Ok(expanded_database_table)
+    }
+}
+
+impl DatabaseTableModel {
+    fn expand_database_table(&self) -> syn::Result<TokenStream> {
         let Self { fields, ident, .. } = self;
 
         let table_name = ident.to_string().to_snake_case();
 
-        macro_rules! check_field_exists {
-            ($field: literal, $ty: literal) => {
-                if !fields
-                    .iter()
-                    .any(|field| field.field.ident.as_ref().unwrap() == $field)
-                {
-                    return Err(syn::Error::new(
-                        ident.span(),
-                        concat!(
-                            "database models must have an `",
-                            $field,
-                            ": ",
-                            $ty,
-                            "` column"
-                        ),
-                    ));
-                }
-            };
-        }
+        if !self.is_sub_model {
+            macro_rules! check_field_exists {
+                ($field: literal, $ty: literal) => {
+                    if !fields
+                        .iter()
+                        .any(|field| field.field.ident.as_ref().unwrap() == $field)
+                    {
+                        return Err(syn::Error::new(
+                            ident.span(),
+                            concat!(
+                                "database models must have an `",
+                                $field,
+                                ": ",
+                                $ty,
+                                "` column"
+                            ),
+                        ));
+                    }
+                };
+            }
 
-        check_field_exists!("id", "Uuid");
-        check_field_exists!("created_at", "DateTime<FixedOffset>");
-        check_field_exists!("updated_at", "DateTime<FixedOffset>");
+            check_field_exists!("id", "Uuid");
+            check_field_exists!("created_at", "DateTime<FixedOffset>");
+            check_field_exists!("updated_at", "DateTime<FixedOffset>");
+        }
 
         let columns = fields
             .iter()
@@ -174,7 +200,7 @@ impl DeriveDatabaseModel {
                     let references_column = references.1.value();
 
                     quote!({
-                        if !<#references_table as awto::database::IntoDatabaseSchema>::database_schema()
+                        if !<#references_table as awto::database::IntoDatabaseMessage>::database_message()
                             .columns
                             .iter()
                             .any(|column| column.name == #references_column)
@@ -190,8 +216,7 @@ impl DeriveDatabaseModel {
                         }
 
                         Some((
-                            <#references_table as awto::database::IntoDatabaseSchema>::database_schema()
-                                .table_name,
+                            <#references_table as awto::database::IntoDatabaseMessage>::database_message().name,
                             #references_column.to_string(),
                         ))
                     })
@@ -216,96 +241,10 @@ impl DeriveDatabaseModel {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let expanded_impl_from_database_schema_generated_string =
-            self.expand_impl_from_database_schema_generated()?;
-        let generated_code = if expanded_impl_from_database_schema_generated_string.is_empty() {
-            quote!(None)
-        } else {
-            let generated_string = expanded_impl_from_database_schema_generated_string
-                .to_string()
-                .split("__schema_module_path__")
-                .collect::<Vec<_>>()
-                .join("\"###, module_path!(), r###\"");
-            let generated_string_expanded: TokenStream =
-                format!("r###\"{}\"###", generated_string).parse().unwrap();
-            quote!(Some(concat!(#generated_string_expanded).to_string()))
-        };
-
         Ok(quote!(
-            impl awto::database::IntoDatabaseSchema for #ident {
-                fn database_schema() -> awto::database::DatabaseSchema {
-                    awto::database::DatabaseSchema {
-                        table_name: #table_name.to_string(),
-                        columns: vec![ #( #columns, )* ],
-                        generated_code: #generated_code,
-                    }
-                }
-            }
-        ))
-    }
-
-    fn expand_impl_from_database_schema_generated(&self) -> syn::Result<TokenStream> {
-        let Self { fields, ident, .. } = self;
-
-        let db_module_ident = format_ident!("{}", ident.to_string().to_snake_case());
-
-        let schema_path = quote!(__schema_module_path__);
-
-        let mut from_schema_fields = Vec::new();
-        let mut from_db_fields = Vec::new();
-
-        for field in fields {
-            let field_ident = field.field.ident.as_ref().unwrap();
-            let ty = &field.field.ty;
-
-            let ty_string = match ty {
-                syn::Type::Reference(reference) => {
-                    let mut reference = reference.clone();
-                    reference.lifetime = None;
-                    quote!(reference.elem.as_ref()).to_string()
-                }
-                other => quote!(#other).to_string(),
-            }
-            .replace(' ', "");
-            let ty_str = if ty_string.starts_with("Option<") {
-                &ty_string[7..(ty_string.len() - 1)]
-            } else {
-                ty_string.as_str()
-            };
-
-            if ty_str.starts_with("std::vec::Vec")
-                || ty_str.starts_with("vec::Vec")
-                || ty_str.starts_with("Vec")
-            {
-                from_schema_fields.push(
-                    quote!(#field_ident: val.#field_ident.into_iter().map(|v| v.into()).collect()),
-                );
-                from_db_fields.push(
-                    quote!(#field_ident: val.#field_ident.into_iter().map(|v| v.into()).collect()),
-                );
-            } else {
-                from_schema_fields.push(quote!(#field_ident: val.#field_ident.into()));
-                from_db_fields.push(quote!(#field_ident: val.#field_ident.into()));
-            }
-        }
-
-        Ok(quote!(
-            impl ::std::convert::From<crate::#db_module_ident::Model> for #schema_path::#ident {
-                #[allow(unused_variables)]
-                fn from(val: crate::#db_module_ident::Model) -> Self {
-                    Self {
-                        #( #from_schema_fields, )*
-                    }
-                }
-            }
-
-            impl ::std::convert::From<#schema_path::#ident> for crate::#db_module_ident::Model {
-                #[allow(unused_variables)]
-                fn from(val: #schema_path::#ident) -> Self {
-                    Self {
-                        #( #from_db_fields, )*
-                    }
-                }
+            awto::database::DatabaseTable {
+                name: #table_name.to_string(),
+                columns: vec![ #( #columns, )* ],
             }
         ))
     }
@@ -384,21 +323,5 @@ impl DeriveDatabaseModel {
         };
 
         Some(quote!(awto::database::DatabaseType::#db_type))
-    }
-}
-
-impl DeriveMacro for DeriveDatabaseModel {
-    fn new(input: syn::DeriveInput) -> Result<Self, Error> {
-        let fields = parse_struct_fields::<ItemAttrs>(input.data)?;
-
-        let ident = input.ident;
-
-        Ok(DeriveDatabaseModel { fields, ident })
-    }
-
-    fn expand(&self) -> syn::Result<TokenStream> {
-        let expanded_impl_database_schema = self.expand_impl_database_schema()?;
-
-        Ok(TokenStream::from_iter([expanded_impl_database_schema]))
     }
 }

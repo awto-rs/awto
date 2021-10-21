@@ -22,7 +22,7 @@ pub enum ProtobufType {
     Bytes,
     Repeated(Box<ProtobufType>),
     Timestamp,
-    Custom(ProtobufSchema),
+    Custom(ProtobufMessage),
 }
 
 pub struct ProtobufTypeFromStrError;
@@ -91,17 +91,19 @@ pub struct ProtobufField {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtobufMethod {
+    pub is_async: bool,
     pub name: String,
-    pub param: ProtobufSchema,
-    pub returns: ProtobufSchema,
-}
-
-pub trait IntoProtobufSchema {
-    fn protobuf_schema() -> ProtobufSchema;
+    pub param: ProtobufMessage,
+    pub returns: ProtobufMessage,
+    pub returns_result: bool,
 }
 
 pub trait IntoProtobufService {
     fn protobuf_service() -> ProtobufService;
+}
+
+pub trait IntoProtobufMessage {
+    fn protobuf_message() -> ProtobufMessage;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -112,38 +114,49 @@ pub struct ProtobufSchema {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ProtobufService {
+pub struct ProtobufMessage {
     pub name: String,
+    pub fields: Vec<ProtobufField>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ProtobufService {
     pub methods: Vec<ProtobufMethod>,
-    pub generated_code: Option<String>,
+    pub module_path: String,
+    pub name: String,
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate as awto;
     use crate::prelude::*;
-
-    #[derive(ProtobufModel)]
-    pub struct Product {
-        pub name: String,
-        #[awto(default = 0)]
-        pub price: i64,
-        #[awto(max_len = 256)]
-        pub description: Option<String>,
-        pub comments: Vec<String>,
-    }
+    use crate::tests_cfg::*;
 
     #[test]
     fn message_name() {
-        assert_eq!(Product::protobuf_schema().name, "Product");
+        assert_eq!(Product::protobuf_message().name, "Product");
     }
 
     #[test]
     fn columns() {
-        let fields = Product::protobuf_schema().fields;
+        let fields = Product::protobuf_message().fields;
 
         let expected = vec![
+            ProtobufField {
+                name: "id".to_string(),
+                ty: ProtobufType::String,
+                required: true,
+            },
+            ProtobufField {
+                name: "created_at".to_string(),
+                ty: ProtobufType::Timestamp,
+                required: true,
+            },
+            ProtobufField {
+                name: "updated_at".to_string(),
+                ty: ProtobufType::Timestamp,
+                required: true,
+            },
             ProtobufField {
                 name: "name".to_string(),
                 ty: ProtobufType::String,
@@ -158,11 +171,6 @@ mod test {
                 name: "description".to_string(),
                 ty: ProtobufType::String,
                 required: false,
-            },
-            ProtobufField {
-                name: "comments".to_string(),
-                ty: ProtobufType::Repeated(Box::new(ProtobufType::String)),
-                required: true,
             },
         ];
         assert_eq!(fields, expected);

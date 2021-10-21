@@ -19,14 +19,16 @@ keywords = ["awto", "database", "protobuf", "schema", "macros"]
 [dependencies]
 awto = { version = "0.1.1", path = "../awto" }
 chrono = "0.4"
+heck = "0.3"
+proc-macro2 = "1.0"
 sqlx = { version = "0.5", features = ["postgres", "runtime-tokio-rustls"] }
 thiserror = "1.0"
 tokio = { version = "1.12", features = [
   "fs",
 ], default-features = false, optional = true }
 tokio-stream = "0.1"
-tonic = "0.5"
 tonic-build = "0.5"
+quote = "1.0"
 uuid = { version = "0.8", features = ["v4"] }
 
 [dev-dependencies]

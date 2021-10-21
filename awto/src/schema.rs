@@ -1,29 +1,27 @@
-use crate::database::DatabaseSchema;
-use crate::protobuf::ProtobufSchema;
+use crate::database::DatabaseTable;
+use crate::protobuf::ProtobufMessage;
 
-pub trait Schema {
-    fn database_schemas() -> Vec<DatabaseSchema> {
-        Vec::new()
-    }
+#[derive(Clone, Debug, PartialEq)]
+pub enum Role {
+    /// An item which will be used to create database tables
+    DatabaseTable(DatabaseTable),
 
-    fn protobuf_schemas() -> Vec<ProtobufSchema> {
-        Vec::new()
-    }
+    /// An item containing some fields of an existing DatabaseTable item, typically used for inserts or updates
+    DatabaseSubTable(DatabaseTable),
+
+    /// An item which will be used as a protobuf message
+    ProtobufMessage(ProtobufMessage),
 }
 
-#[macro_export]
-macro_rules! register_schemas {
-    ($( $name: ident ),*) => {
-        pub struct Schema;
+#[derive(Clone, Debug, PartialEq)]
+pub struct RustField {
+    pub name: String,
+    pub ty: String,
+}
 
-        impl ::awto::schema::Schema for Schema {
-            fn database_schemas() -> Vec<::awto::database::DatabaseSchema> {
-                vec![ $( <$name as ::awto::database::IntoDatabaseSchema>::database_schema(), )* ]
-            }
-
-            fn protobuf_schemas() -> Vec<::awto::protobuf::ProtobufSchema> {
-                vec![ $( <$name as ::awto::protobuf::IntoProtobufSchema>::protobuf_schema(), )* ]
-            }
-        }
-    };
+#[derive(Clone, Debug, PartialEq)]
+pub struct Model {
+    pub name: String,
+    pub roles: Vec<Role>,
+    pub fields: Vec<RustField>,
 }

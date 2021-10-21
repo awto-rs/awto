@@ -134,46 +134,29 @@ pub struct DatabaseColumn {
     pub references: Option<(String, String)>,
 }
 
-pub trait IntoDatabaseSchema {
-    fn database_schema() -> DatabaseSchema;
+pub trait IntoDatabaseTable {
+    fn database_table() -> DatabaseTable;
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub struct DatabaseSchema {
-    pub table_name: String,
+pub struct DatabaseTable {
+    pub name: String,
     pub columns: Vec<DatabaseColumn>,
-    pub generated_code: Option<String>,
 }
 
 #[cfg(test)]
 mod test {
-    use chrono::{DateTime, FixedOffset};
-    use uuid::Uuid;
-
     use super::*;
-    use crate as awto;
-    use crate::prelude::*;
-
-    #[derive(Model)]
-    pub struct Product {
-        pub id: Uuid,
-        pub created_at: DateTime<FixedOffset>,
-        pub updated_at: DateTime<FixedOffset>,
-        pub name: String,
-        #[awto(default = 0)]
-        pub price: i64,
-        #[awto(max_len = 256)]
-        pub description: Option<String>,
-    }
+    use crate::tests_cfg::*;
 
     #[test]
     fn table_name() {
-        assert_eq!(Product::database_schema().table_name, "product");
+        assert_eq!(Product::database_table().name, "product");
     }
 
     #[test]
     fn columns() {
-        let columns = Product::database_schema().columns;
+        let columns = Product::database_table().columns;
         let expected = vec![
             DatabaseColumn {
                 name: "id".to_string(),
@@ -227,7 +210,7 @@ mod test {
             },
             DatabaseColumn {
                 name: "description".to_string(),
-                ty: DatabaseType::Text(Some(256)),
+                ty: DatabaseType::Text(Some(120)),
                 nullable: true,
                 default: None,
                 unique: false,

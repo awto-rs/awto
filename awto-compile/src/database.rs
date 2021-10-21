@@ -1,10 +1,18 @@
 use std::{borrow::Cow, env, fmt::Write};
 
-use awto::database::{DatabaseColumn, DatabaseDefault, DatabaseSchema, DatabaseType};
+use awto::{
+    database::{DatabaseColumn, DatabaseDefault, DatabaseTable, DatabaseType},
+    schema::{Model, Role},
+};
+use proc_macro2::Literal;
+use quote::{format_ident, quote};
 use sqlx::{Executor, PgPool};
 use tokio_stream::StreamExt;
 
-use crate::error::Error;
+use crate::{
+    error::Error,
+    util::{is_ty_option, is_ty_vec, strip_ty_option},
+};
 
 const COMPILED_RUST_FILE: &str = "app.rs";
 
@@ -17,13 +25,13 @@ pub struct CompileDatabaseResult {
 #[cfg(feature = "async")]
 pub async fn compile_database(
     uri: &str,
-    schemas: Vec<DatabaseSchema>,
+    models: Vec<Model>,
 ) -> Result<CompileDatabaseResult, Box<dyn std::error::Error>> {
     use tokio::fs;
 
     let out_dir = env::var("OUT_DIR").unwrap();
     let pool = PgPool::connect(uri).await?;
-    let compiler = DatabaseCompiler::from_pool(&pool, schemas);
+    let compiler = DatabaseCompiler::from_pool(&pool, models);
 
     let generated_code = compiler.compile_generated_code();
     if !generated_code.is_empty() {
@@ -54,13 +62,13 @@ pub async fn compile_database(
 #[cfg(not(feature = "async"))]
 pub async fn compile_database(
     uri: &str,
-    schemas: Vec<DatabaseSchema>,
+    models: Vec<Model>,
 ) -> Result<CompileDatabaseResult, Box<dyn std::error::Error>> {
     use std::fs;
 
     let out_dir = env::var("OUT_DIR").unwrap();
     let pool = PgPool::connect(uri).await?;
-    let compiler = DatabaseCompiler::from_pool(&pool, schemas);
+    let compiler = DatabaseCompiler::from_pool(&pool, models);
 
     let generated_code = compiler.compile_generated_code();
     if !generated_code.is_empty() {
@@ -90,33 +98,33 @@ pub async fn compile_database(
 
 pub struct DatabaseCompiler<'pool> {
     pool: Cow<'pool, PgPool>,
-    tables: Vec<DatabaseSchema>,
+    models: Vec<Model>,
 }
 
 impl<'pool> DatabaseCompiler<'pool> {
     pub async fn connect(
         uri: &str,
-        tables: Vec<DatabaseSchema>,
+        models: Vec<Model>,
     ) -> Result<DatabaseCompiler<'_>, sqlx::Error> {
         let pool = sqlx::PgPool::connect(uri).await?;
 
         Ok(DatabaseCompiler {
             pool: Cow::Owned(pool),
-            tables,
+            models,
         })
     }
 
-    pub fn from_pool(pool: &'pool PgPool, tables: Vec<DatabaseSchema>) -> DatabaseCompiler<'pool> {
+    pub fn from_pool(pool: &'pool PgPool, models: Vec<Model>) -> DatabaseCompiler<'pool> {
         DatabaseCompiler {
             pool: Cow::Borrowed(pool),
-            tables,
+            models,
         }
     }
 
     pub async fn compile(&self) -> Result<String, Error> {
         let mut sql = String::new();
 
-        for table in &self.tables {
+        for (_, table) in self.database_tables() {
             let db_columns = self.fetch_table(table).await?;
 
             match db_columns {
@@ -136,18 +144,140 @@ impl<'pool> DatabaseCompiler<'pool> {
     pub fn compile_generated_code(&self) -> String {
         let mut code = String::new();
 
-        for table in &self.tables {
-            if let Some(generated_code) = &table.generated_code {
-                write!(code, "{}", generated_code).unwrap();
+        for (model, table) in self.database_tables() {
+            let ident = format_ident!("{}", model.name);
+            let db_module_ident = format_ident!("{}", table.name);
+
+            let mut from_schema_fields = Vec::new();
+            let mut from_db_fields = Vec::new();
+
+            for field in &model.fields {
+                let field_ident = format_ident!("{}", field.name);
+
+                let ty = strip_ty_option(&field.ty);
+
+                if is_ty_vec(ty) {
+                    from_schema_fields.push(
+                        quote!(#field_ident: val.#field_ident.into_iter().map(|v| v.into()).collect()),
+                    );
+                    from_db_fields.push(
+                        quote!(#field_ident: val.#field_ident.into_iter().map(|v| v.into()).collect()),
+                    );
+                } else {
+                    from_schema_fields.push(quote!(#field_ident: val.#field_ident.into()));
+                    from_db_fields.push(quote!(#field_ident: val.#field_ident.into()));
+                }
             }
+
+            let expanded = quote!(
+                impl ::std::convert::From<crate::#db_module_ident::Model> for ::schema::#ident {
+                    #[allow(unused_variables)]
+                    fn from(val: crate::#db_module_ident::Model) -> Self {
+                        Self {
+                            #( #from_schema_fields, )*
+                        }
+                    }
+                }
+
+                impl ::std::convert::From<::schema::#ident> for crate::#db_module_ident::Model {
+                    #[allow(unused_variables)]
+                    fn from(val: ::schema::#ident) -> Self {
+                        Self {
+                            #( #from_db_fields, )*
+                        }
+                    }
+                }
+            );
+
+            write!(code, "{}", expanded.to_string()).unwrap();
+        }
+
+   
+        for (model, table) in self.database_sub_tables() {
+            let ident = format_ident!("{}", model.name);
+            let db_module_ident = format_ident!("{}", table.name);
+
+            let active_values = model.fields.iter().map(|field| {
+                let field_ident = format_ident!("{}", field.name);
+                
+                let self_field = if is_ty_option(&field.ty) {
+                    let db_field = table.columns.iter().find(|column| column.name == field.name).unwrap();
+                    match &db_field.default {
+                        Some(DatabaseDefault::Bool(b)) => quote!(self.#field_ident.unwrap_or(#b)),
+                        Some(DatabaseDefault::Float(f)) => {
+                            let f = Literal::i64_unsuffixed(*f);
+                            quote!(self.#field_ident.unwrap_or(#f))
+                        },
+                        Some(DatabaseDefault::Int(i)) => {
+                            let i = Literal::u64_unsuffixed(*i);
+                            quote!(self.#field_ident.unwrap_or(#i))
+                        },
+                        Some(DatabaseDefault::String(s)) => quote!(self.#field_ident.unwrap_or(#s)),
+                        _ => quote!(self.#field_ident),
+                    }
+                } else {
+                    quote!(self.#field_ident)
+                };
+
+                quote!(
+                    #field_ident: ::sea_orm::entity::IntoActiveValue::into_active_value(#self_field).into()
+                )
+            });
+            
+            let expanded = quote!(
+                impl ::sea_orm::entity::IntoActiveModel<crate::#db_module_ident::ActiveModel> for ::schema::#ident {
+                    fn into_active_model(self) -> crate::#db_module_ident::ActiveModel {
+                        crate::#db_module_ident::ActiveModel {
+                            #( #active_values, )*
+                            ..Default::default()
+                        }
+                    }
+                }
+            );
+
+            write!(code, "{}", expanded.to_string()).unwrap();
         }
 
         code.trim().to_string()
     }
 
+    fn database_tables(&self) -> Vec<(&Model, &DatabaseTable)> {
+        self.models.iter().fold(Vec::new(), |mut acc, model| {
+            let roles = model
+                .roles
+                .iter()
+                .filter_map(|role| match role {
+                    Role::DatabaseTable(database_table) => Some((model, database_table)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+
+            acc.extend(roles);
+
+            acc
+        })
+    }
+
+    fn database_sub_tables(&self) -> Vec<(&Model, &DatabaseTable)> {
+        self.models.iter().fold(Vec::new(), |mut acc, model| {
+            let roles = model
+                .roles
+                .iter()
+                .filter_map(|role| match role {
+                    Role::DatabaseSubTable(database_sub_table) => Some((model, database_sub_table)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+
+            acc.extend(roles);
+
+            acc
+        })
+    }
+
     async fn fetch_table(
         &self,
-        table: &DatabaseSchema,
+        table: &DatabaseTable,
     ) -> Result<Option<Vec<DatabaseColumn>>, Error> {
         #[derive(Debug, sqlx::FromRow)]
         struct ColumnsQuery {
@@ -163,7 +293,7 @@ impl<'pool> DatabaseCompiler<'pool> {
 
         let raw_columns: Vec<ColumnsQuery> = sqlx::query_as(FETCH_TABLE_QUERY)
             .bind("public")
-            .bind(&table.table_name)
+            .bind(&table.name)
             .fetch_all(&*self.pool)
             .await
             .map_err(Error::Sqlx)?;
@@ -192,9 +322,7 @@ impl<'pool> DatabaseCompiler<'pool> {
 
                             database_type
                         })
-                        .map_err(|_| {
-                            Error::UnsupportedType(table.table_name.clone(), column_name)
-                        })?,
+                        .map_err(|_| Error::UnsupportedType(table.name.clone(), column_name))?,
                     nullable: col.is_nullable == "YES",
                     default: col.column_default.map(|def| {
                         if def.starts_with('\'') {
@@ -240,10 +368,10 @@ impl<'pool> DatabaseCompiler<'pool> {
         Ok(Some(columns))
     }
 
-    fn write_table_create_sql(&self, table: &DatabaseSchema) -> String {
+    fn write_table_create_sql(&self, table: &DatabaseTable) -> String {
         let mut sql = String::new();
 
-        writeln!(sql, "CREATE TABLE IF NOT EXISTS {} (", table.table_name).unwrap();
+        writeln!(sql, "CREATE TABLE IF NOT EXISTS {} (", table.name).unwrap();
 
         for (i, column) in table.columns.iter().enumerate() {
             write!(sql, "  {}", self.write_column_sql(column)).unwrap();
@@ -288,11 +416,7 @@ impl<'pool> DatabaseCompiler<'pool> {
         sql
     }
 
-    async fn write_sync_sql(
-        &self,
-        table: &DatabaseSchema,
-        db_columns: &[DatabaseColumn],
-    ) -> String {
+    async fn write_sync_sql(&self, table: &DatabaseTable, db_columns: &[DatabaseColumn]) -> String {
         let mut sql = String::new();
 
         for schema_col in &table.columns {
@@ -306,7 +430,7 @@ impl<'pool> DatabaseCompiler<'pool> {
                     writeln!(
                         sql,
                         "ALTER TABLE {} ADD COLUMN {};",
-                        table.table_name,
+                        table.name,
                         self.write_column_sql(schema_col)
                     )
                     .unwrap();
@@ -319,7 +443,7 @@ impl<'pool> DatabaseCompiler<'pool> {
                 writeln!(
                     sql,
                     "ALTER TABLE {table} ALTER COLUMN {column} TYPE {ty} USING {column}::{ty};",
-                    table = table.table_name,
+                    table = table.name,
                     column = schema_col.name,
                     ty = schema_col.ty.to_string(),
                 )
@@ -332,7 +456,7 @@ impl<'pool> DatabaseCompiler<'pool> {
                     writeln!(
                         sql,
                         "ALTER TABLE {table} ALTER COLUMN {column} SET NOT NULL;",
-                        table = table.table_name,
+                        table = table.name,
                         column = schema_col.name
                     )
                     .unwrap();
@@ -340,7 +464,7 @@ impl<'pool> DatabaseCompiler<'pool> {
                     writeln!(
                         sql,
                         "ALTER TABLE {table} ALTER COLUMN {column} DROP NOT NULL;",
-                        table = table.table_name,
+                        table = table.name,
                         column = schema_col.name
                     )
                     .unwrap();
@@ -349,16 +473,11 @@ impl<'pool> DatabaseCompiler<'pool> {
 
             // Check for default mismatch
             if schema_col.default != db_col.default {
-                println!("Default mismatch for table {}", table.table_name);
-                println!(
-                    "Schema has {:?}\nDb has {:?}",
-                    schema_col.default, db_col.default
-                );
                 if let Some(default) = &schema_col.default {
                     writeln!(
                         sql,
                         "ALTER TABLE {table} ALTER COLUMN {column} SET DEFAULT {default};",
-                        table = table.table_name,
+                        table = table.name,
                         column = schema_col.name,
                         default = default
                     )
@@ -367,7 +486,7 @@ impl<'pool> DatabaseCompiler<'pool> {
                     writeln!(
                         sql,
                         "ALTER TABLE {table} ALTER COLUMN {column} DROP DEFAULT;",
-                        table = table.table_name,
+                        table = table.name,
                         column = schema_col.name
                     )
                     .unwrap();
@@ -380,7 +499,7 @@ impl<'pool> DatabaseCompiler<'pool> {
                     writeln!(
                         sql,
                         "ALTER TABLE {table} DROP CONSTRAINT {table}_{column}_key;",
-                        table = table.table_name,
+                        table = table.name,
                         column = schema_col.name
                     )
                     .unwrap();
@@ -388,7 +507,7 @@ impl<'pool> DatabaseCompiler<'pool> {
                     writeln!(
                         sql,
                         "ALTER TABLE {table} ADD CONSTRAINT {table}_{column}_key UNIQUE ({column});",
-                        table = table.table_name,
+                        table = table.name,
                         column = schema_col.name
                     )
                     .unwrap();
@@ -402,7 +521,7 @@ impl<'pool> DatabaseCompiler<'pool> {
                         writeln!(
                             sql,
                             "ALTER TABLE {table} DROP CONSTRAINT {table}_{column}_fkey;",
-                            table = table.table_name,
+                            table = table.name,
                             column = schema_col.name
                         )
                         .unwrap();
@@ -410,7 +529,7 @@ impl<'pool> DatabaseCompiler<'pool> {
                     writeln!(
                         sql,
                         "ALTER TABLE {table} ADD CONSTRAINT {table}_{column}_fkey FOREIGN KEY ({column}) REFERENCES {reference_table} ({reference_column});",
-                        table = table.table_name,
+                        table = table.name,
                         column = schema_col.name,
                         reference_table = references.0,
                         reference_column = references.1,
@@ -420,7 +539,7 @@ impl<'pool> DatabaseCompiler<'pool> {
                     writeln!(
                         sql,
                         "ALTER TABLE {table} DROP CONSTRAINT {table}_{column}_fkey;",
-                        table = table.table_name,
+                        table = table.name,
                         column = schema_col.name
                     )
                     .unwrap();
@@ -441,7 +560,7 @@ impl<'pool> DatabaseCompiler<'pool> {
                 writeln!(
                     sql,
                     "ALTER TABLE {table} DROP COLUMN {column};",
-                    table = table.table_name,
+                    table = table.name,
                     column = db_col.name
                 )
                 .unwrap();

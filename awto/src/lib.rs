@@ -15,9 +15,12 @@
 //! See more on the [repository](https://github.com/awto-rs/awto).
 
 pub use awto_macros as macros;
+pub use lazy_static;
 
 pub mod database;
 pub mod prelude;
 pub mod protobuf;
 pub mod schema;
 pub mod service;
+#[doc(hidden)]
+pub mod tests_cfg;

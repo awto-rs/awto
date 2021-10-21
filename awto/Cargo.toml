@@ -18,7 +18,10 @@ keywords = ["awto", "database", "protobuf", "schema", "macros"]
 
 [dependencies]
 awto-macros = { version = "0.1.1", path = "../awto-macros" }
+chrono = "0.4"
 lazy_static = "1.4"
+tonic = "0.5"
+uuid = "0.8"
 
 [dev-dependencies]
 chrono = "0.4"

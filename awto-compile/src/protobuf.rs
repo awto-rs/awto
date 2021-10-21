@@ -1,13 +1,21 @@
 use std::{env, fmt::Write};
 
-use awto::protobuf::{ProtobufField, ProtobufMethod, ProtobufSchema, ProtobufService};
+use awto::{
+    protobuf::{ProtobufField, ProtobufMessage, ProtobufMethod, ProtobufService},
+    schema::{Model, Role},
+};
+use heck::SnakeCase;
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
+
+use crate::util::{is_ty_vec, strip_ty_option};
 
 const COMPILED_PROTO_FILE: &str = "app.proto";
 const COMPILED_RUST_FILE: &str = "app.rs";
 
 #[cfg(feature = "async")]
 pub fn compile_protobuf(
-    schemas: Vec<ProtobufSchema>,
+    models: Vec<Model>,
     services: Vec<ProtobufService>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tokio::fs;
@@ -20,7 +28,7 @@ pub fn compile_protobuf(
         return Ok(());
     }
 
-    let compiler = ProtobufCompiler::new(schemas, services);
+    let compiler = ProtobufCompiler::new(models, services);
 
     let proto = compiler.compile_file();
     let proto_path = format!("{}/{}", out_dir, COMPILED_PROTO_FILE);
@@ -42,7 +50,7 @@ pub fn compile_protobuf(
 
 #[cfg(not(feature = "async"))]
 pub fn compile_protobuf(
-    schemas: Vec<ProtobufSchema>,
+    models: Vec<Model>,
     services: Vec<ProtobufService>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use std::fs;
@@ -50,7 +58,7 @@ pub fn compile_protobuf(
 
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    let compiler = ProtobufCompiler::new(schemas, services);
+    let compiler = ProtobufCompiler::new(models, services);
 
     let proto = compiler.compile_file();
     let proto_path = format!("{}/{}", out_dir, COMPILED_PROTO_FILE);
@@ -70,16 +78,16 @@ pub fn compile_protobuf(
     Ok(())
 }
 
-/// Compiles a protobuf schema from a slice of [`ProtobufSchema`]s and [`ProtobufService`]s.
+/// Compiles a protobuf schema from a slice of [`ProtobufMessage`]s and [`ProtobufService`]s.
 ///
 /// # Examples
 ///
 /// ```
 /// # use awto_compile::protobuf::ProtobufCompiler;
-/// # use awto_compile::tests_cfg::*;
-/// # use awto::protobuf::{IntoProtobufSchema, IntoProtobufService};
+/// # use awto::tests_cfg::*;
+/// # use awto::protobuf::IntoProtobufService;
 /// let compiler = ProtobufCompiler::new(
-///     vec![Product::protobuf_schema(), Variant::protobuf_schema()],
+///     MODELS.to_vec(),
 ///     vec![ProductService::protobuf_service()],
 /// );
 /// let protobuf_file = compiler.compile_file();
@@ -107,13 +115,10 @@ pub fn compile_protobuf(
 ///   repeated Product products = 1;
 /// }
 ///
-/// message Variant {
-///   string id = 1;
-///   google.protobuf.Timestamp created_at = 2;
-///   google.protobuf.Timestamp updated_at = 3;
-///   string product_id = 4;
-///   string name = 5;
-///   int64 price = 6;
+/// message NewProduct {
+///   string name = 1;
+///   optional int64 price = 2;
+///   optional string description = 3;
 /// }
 ///
 /// service ProductService {
@@ -121,14 +126,14 @@ pub fn compile_protobuf(
 /// }"#);
 /// ```
 pub struct ProtobufCompiler {
-    messages: Vec<ProtobufSchema>,
+    models: Vec<Model>,
     services: Vec<ProtobufService>,
 }
 
 impl ProtobufCompiler {
     /// Creates a new instance of [`ProtobufCompiler`].
-    pub fn new(messages: Vec<ProtobufSchema>, services: Vec<ProtobufService>) -> ProtobufCompiler {
-        ProtobufCompiler { messages, services }
+    pub fn new(models: Vec<Model>, services: Vec<ProtobufService>) -> ProtobufCompiler {
+        ProtobufCompiler { models, services }
     }
 
     /// Compiles a protobuf file.
@@ -138,7 +143,7 @@ impl ProtobufCompiler {
         write!(proto, "{}", self.write_protobuf_header()).unwrap();
         writeln!(proto).unwrap();
 
-        for message in self.all_distinct_messages() {
+        for message in self.all_protobuf_messages() {
             writeln!(proto, "{}", self.write_protobuf_message(message)).unwrap();
         }
 
@@ -173,36 +178,160 @@ impl ::std::fmt::Display for TryFromProtoError {{
         )
         .unwrap();
 
-        for message in self.all_distinct_messages() {
-            if let Some(generated_code) = &message.generated_code {
-                write!(code, "{}", generated_code).unwrap();
+        for (model, _) in self.protobuf_messages() {
+            let ident = format_ident!("{}", model.name);
+
+            let mut from_rust_fields = Vec::new();
+            let mut from_proto_fields = Vec::new();
+
+            for field in &model.fields {
+                let field_ident = format_ident!("{}", field.name);
+                let field_ident_string = &field.name;
+
+                let ty = strip_ty_option(&field.ty);
+
+                match ty {
+                    "chrono::NaiveDateTime"
+                    | "NaiveDateTime"
+                    | "chrono::DateTime<chrono::FixedOffset>"
+                    | "chrono::DateTime<FixedOffset>"
+                    | "DateTime<chrono::FixedOffset>"
+                    | "DateTime<FixedOffset>" => {
+                        from_rust_fields.push(quote!(
+                            #field_ident: Some(::prost_types::Timestamp {
+                                nanos: val.#field_ident.timestamp_nanos() as i32,
+                                seconds: val.#field_ident.timestamp(),
+                            })
+                        ));
+                        from_proto_fields.push(quote!(
+                        #field_ident: {
+                            let unwrapped_value = val.#field_ident.ok_or_else(|| TryFromProtoError::MissingField(#field_ident_string.to_string()))?;
+                            ::chrono::DateTime::from_utc(
+                                ::chrono::naive::NaiveDateTime::from_timestamp(
+                                    unwrapped_value.seconds,
+                                    unwrapped_value.nanos as u32
+                                ),
+                                ::chrono::FixedOffset::east(0),
+                            )
+                        }
+                    ));
+                    }
+                    "uuid::Uuid" | "Uuid" => {
+                        from_rust_fields.push(quote!(
+                            #field_ident: val.#field_ident.to_string()
+                        ));
+                        from_proto_fields.push(quote!(
+                        #field_ident: ::uuid::Uuid::parse_str(&val.#field_ident).map_err(|_| TryFromProtoError::InvalidUuid)?
+                    ));
+                    }
+                    _ => {
+                        if is_ty_vec(ty) {
+                            from_rust_fields.push(quote!(#field_ident: val.#field_ident.into_iter().map(|v| v.into()).collect()));
+                            from_proto_fields.push(quote!(#field_ident: val.#field_ident.into_iter().map(|v| ::std::convert::TryFrom::try_from(v)).collect::<Result<_, _>>()?));
+                        } else {
+                            from_rust_fields.push(quote!(#field_ident: val.#field_ident.into()));
+                            from_proto_fields.push(quote!(#field_ident: val.#field_ident.into()));
+                        }
+                    }
+                }
             }
+
+            let expanded = quote!(
+                impl ::std::convert::TryFrom<#ident> for ::schema::#ident {
+                    type Error = TryFromProtoError;
+
+                    #[allow(unused_variables)]
+                    fn try_from(val: #ident) -> Result<Self, Self::Error> {
+                        Ok(Self {
+                            #( #from_proto_fields, )*
+                        })
+                    }
+                }
+
+                impl ::std::convert::From<::schema::#ident> for #ident {
+                    #[allow(unused_variables)]
+                    fn from(val: ::schema::#ident) -> Self {
+                        Self {
+                            #( #from_rust_fields, )*
+                        }
+                    }
+                }
+            );
+
+            write!(code, "{}", expanded.to_string()).unwrap();
         }
 
         for service in &self.services {
-            if let Some(generated_code) = &service.generated_code {
-                write!(code, "{}", generated_code).unwrap();
+            let ident = format_ident!("{}", service.name);
+            let service_path: TokenStream = service.module_path.parse().unwrap();
+            let service_server_name = format_ident!("{}_server", service.name.to_snake_case());
+
+            let mut methods = Vec::new();
+            for method in &service.methods {
+                let name_ident = format_ident!("{}", method.name.to_snake_case());
+                let param_ident = format_ident!("{}", method.param.name);
+                let returns_ident = format_ident!("{}", method.returns.name);
+
+                let expanded_call_method = if method.returns_result {
+                    if method.is_async {
+                        quote!(self.#name_ident(param).await?)
+                    } else {
+                        quote!(self.#name_ident(param)?)
+                    }
+                } else if method.is_async {
+                    quote!(self.#name_ident(param).await)
+                } else {
+                    quote!(self.#name_ident(param))
+                };
+
+                methods.push(quote!(
+                    async fn #name_ident(
+                        &self,
+                        request: ::tonic::Request<#param_ident>,
+                    ) -> Result<::tonic::Response<#returns_ident>, ::tonic::Status> {
+                        let inner = request.into_inner();
+                        let param = ::std::convert::TryInto::try_into(inner).map_err(|err: TryFromProtoError| ::tonic::Status::invalid_argument(err.to_string()))?;
+                        let value = #expanded_call_method;
+                        Ok(::tonic::Response::new(value.into()))
+                    }
+                ));
             }
+
+            let expanded = quote!(
+                #[::tonic::async_trait]
+                impl #service_server_name::#ident for #service_path::#ident {
+                    #( #methods )*
+                }
+            );
+
+            write!(code, "{}", expanded.to_string()).unwrap();
         }
 
         code.trim().to_string()
     }
 
-    fn all_distinct_messages(&self) -> Vec<&ProtobufSchema> {
-        let mut all_messages = self.services.iter().fold(Vec::new(), |mut acc, service| {
-            for method in &service.methods {
-                acc.push(&method.param);
-                acc.push(&method.returns);
-            }
+    fn protobuf_messages(&self) -> Vec<(&Model, &ProtobufMessage)> {
+        self.models.iter().fold(Vec::new(), |mut acc, model| {
+            let roles = model
+                .roles
+                .iter()
+                .filter_map(|role| match role {
+                    Role::ProtobufMessage(protobuf_message) => Some((model, protobuf_message)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+
+            acc.extend(roles);
 
             acc
-        });
-        all_messages.extend(&self.messages);
+        })
+    }
 
-        all_messages.sort_by_key(|message| message.name.as_str());
-        all_messages.dedup_by_key(|message| message.name.as_str());
-
-        all_messages
+    fn all_protobuf_messages(&self) -> Vec<&ProtobufMessage> {
+        self.protobuf_messages()
+            .iter()
+            .map(|(_, protobuf_message)| *protobuf_message)
+            .collect()
     }
 
     fn write_protobuf_header(&self) -> String {
@@ -217,7 +346,7 @@ impl ::std::fmt::Display for TryFromProtoError {{
         proto
     }
 
-    fn write_protobuf_message(&self, message: &ProtobufSchema) -> String {
+    fn write_protobuf_message(&self, message: &ProtobufMessage) -> String {
         let mut proto = String::new();
 
         writeln!(proto, "message {} {{", message.name).unwrap();
