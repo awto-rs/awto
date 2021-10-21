@@ -138,6 +138,7 @@ pub trait IntoDatabaseSchema {
     fn database_schema() -> DatabaseSchema;
 }
 
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct DatabaseSchema {
     pub table_name: String,
     pub columns: Vec<DatabaseColumn>,
