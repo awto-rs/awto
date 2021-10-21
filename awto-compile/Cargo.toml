@@ -1,6 +1,6 @@
 [package]
 name = "awto-compile"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Ari Seyhun <ariseyhun@live.com.au>"]
 edition = "2018"
 description = "Compile microservices built with Awto"
@@ -17,7 +17,7 @@ categories = [
 keywords = ["awto", "database", "protobuf", "schema", "macros"]
 
 [dependencies]
-awto = { version = "0.1.1", path = "../awto" }
+awto = { version = "0.1.2", path = "../awto" }
 chrono = "0.4"
 heck = "0.3"
 proc-macro2 = "1.0"
