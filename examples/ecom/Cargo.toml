@@ -3,6 +3,7 @@ members = [
   "awto/database",
   "awto/protobuf",
   "client",
+  "graphql",
   "schema",
   "server",
   "service",

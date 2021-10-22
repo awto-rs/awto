@@ -1,0 +1,10 @@
+[package]
+name = "graphql"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+async-graphql = { version = "2.10", features = ["chrono", "uuid"] }
+awto = { path = "../../../awto" }
+schema = { path = "../schema" }
+service = { path = "../service" }
