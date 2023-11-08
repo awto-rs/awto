@@ -112,7 +112,8 @@ impl DatabaseTableModel {
                         "type is not suppoerted",
                     ));
                 };
-                let db_type_is_text = ty.to_string().ends_with(":: Text");
+                let ty_string = ty.to_string();
+                let db_type_is_text = ty_string.ends_with("::Text") || ty_string.ends_with(":: Text");
                 if let Some(max_len) = &field.attrs.max_len {
                     if !db_type_is_text {
                         return Err(syn::Error::new(
